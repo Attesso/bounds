@@ -1661,6 +1661,17 @@
     return [callsDay, callsHour, el('calls-tool').value, el('calls-capability').value, el('calls-decision').value, el('calls-search').value.trim()].join('|');
   }
 
+  function callsParams(extra = {}) {
+    const params = new URLSearchParams({ tz: TZ, ...extra });
+    if (callsDay !== '*') params.set('day', callsDay);
+    if (callsHour) params.set('hour', callsHour);
+    if (el('calls-tool').value) params.set('tool', el('calls-tool').value);
+    if (el('calls-capability').value) params.set('capability', el('calls-capability').value);
+    if (el('calls-decision').value) params.set('decision', el('calls-decision').value);
+    if (el('calls-search').value.trim()) params.set('search', el('calls-search').value.trim());
+    return params;
+  }
+
   async function loadCalls(reset = true, direction = 'next') {
     const request = ++callsRequest;
     const key = callFilterKey();
@@ -1677,13 +1688,7 @@
       if (!allCursors.length) return;
       allCursor = allCursors.pop();
     }
-    const params = new URLSearchParams({ tz: TZ, limit: '100' });
-    if (callsDay !== '*') params.set('day', callsDay);
-    if (callsHour) params.set('hour', callsHour);
-    if (el('calls-tool').value) params.set('tool', el('calls-tool').value);
-    if (el('calls-capability').value) params.set('capability', el('calls-capability').value);
-    if (el('calls-decision').value) params.set('decision', el('calls-decision').value);
-    if (el('calls-search').value.trim()) params.set('search', el('calls-search').value.trim());
+    const params = callsParams({ limit: '100' });
     if (allCursor) params.set('cursor', allCursor);
     try {
       const response = await fetch('/api/v1/calls?' + params.toString(), { cache: 'no-store', headers: AUTH });
@@ -1784,12 +1789,22 @@
     el('calls-drawer').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function exportCsv() {
-    const rows = v1 ? allRows : filteredCalls();
-    const q = (value) => '"' + String(value ?? '').replaceAll('"', '""') + '"';
-    const lines = ['day,time,tool,capability,decision,rule,task'];
-    for (const row of rows) lines.push([row[7], row[1], row[2], row[3], row[4], row[5], row[6]].map(q).join(','));
-    const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+  async function exportCsv() {
+    let text;
+    if (v1) {
+      const response = await fetch('/api/v1/calls/export?' + callsParams().toString(), { cache: 'no-store', headers: AUTH });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || 'export ' + response.status);
+      }
+      text = await response.text();
+    } else {
+      const q = (value) => '"' + String(value ?? '').replaceAll('"', '""') + '"';
+      const lines = ['day,time,tool,capability,decision,rule,task'];
+      for (const row of filteredCalls()) lines.push([row[7], row[1], row[2], row[3], row[4], row[5], row[6]].map(q).join(','));
+      text = lines.join('\n') + '\n';
+    }
+    const blob = new Blob([text], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1844,7 +1859,9 @@
     if (!event.target.closest('#flow-popover') && !event.target.closest('.fm')) closePopover();
   });
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePopover(); });
-  el('calls-csv').addEventListener('click', exportCsv);
+  el('calls-csv').addEventListener('click', () => {
+    exportCsv().catch((error) => { el('calls-count').textContent = 'Could not export: ' + error.message; });
+  });
   el('calls-day').addEventListener('change', () => { callsDay = el('calls-day').value; callsPage = 0; renderCalls(); });
   el('calls-search').addEventListener('input', () => { callsPage = 0; renderCalls(); });
   el('calls-tool').addEventListener('change', () => { callsPage = 0; renderCalls(); });

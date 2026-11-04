@@ -160,4 +160,18 @@ export function page(catalog, { day, timeZone, after = 0, limit = 100, filters =
   };
 }
 
+export function exportCsv(catalog, { day, timeZone, filters = null }) {
+  const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+  const lines = ['day,time,tool,capability,decision,rule,task'];
+  const collect = (entry) => {
+    if (!isAction(entry)) return;
+    const row = rowFor(entry, timeZone);
+    if (filters && !matches(row, filters)) return;
+    lines.push([dayFor(entry.at, timeZone), row[1], row[2], row[3], row[4], row[5], row[6]].map(quote).join(','));
+  };
+  if (day) catalog.scanDay(day, timeZone, collect);
+  else catalog.scanAfter(0, collect);
+  return `${lines.join('\n')}\n`;
+}
+
 export { Catalog };

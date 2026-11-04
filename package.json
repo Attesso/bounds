@@ -1,6 +1,6 @@
 {
   "name": "attesso",
-  "version": "0.11.1",
+  "version": "0.12.3",
   "description": "Bounds: decide an AI agent's next tool call before it runs, with a signed record. Free and unlimited locally, $0.00085 per synced decision.",
   "license": "Apache-2.0",
   "type": "module",

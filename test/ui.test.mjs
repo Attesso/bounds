@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { append, init } from '../src/store.mjs';
+import { append, init, paths } from '../src/store.mjs';
 import { startUi } from '../src/ui/server.mjs';
 import { tempDir } from './helpers.mjs';
 
@@ -98,6 +98,43 @@ test('the packaged UI serves the page, status, calls and paths over loopback', a
     assert.equal((await post(ui, 'api/workspace', { sync_url: 'http://remote.example', api_key: 'att_test_abcdefghijkl' })).status, 400);
     assert.equal((await fetch(`${ui.url}api/workspace`, { method: 'DELETE', headers: headers(ui.token) })).status, 200);
     assert.deepEqual(await (await get(ui, 'api/workspace')).json(), { connected: false });
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the v1 export returns every call for the day, not just the loaded page', async () => {
+  const { ledger, home } = fixture();
+  const base = Date.UTC(2026, 10, 2);
+  const entries = [];
+  for (let index = 1; index <= 250; index += 1) {
+    const write = index % 5 === 0;
+    entries.push(JSON.stringify({
+      seq: index,
+      at: new Date(base + index * 1000).toISOString(),
+      action: 'tool.call',
+      subject: write ? 'write_file' : 'read_file',
+      task: 'export-task',
+      trust: 'internal',
+      capability: write ? 'write' : 'read',
+      decision: 'ALLOW',
+      code: 'ALLOW',
+    }));
+  }
+  writeFileSync(paths(ledger).ledger, entries.join('\n') + '\n');
+  writeFileSync(paths(ledger).config, JSON.stringify({ version: 1, head: { count: 250, hash: 'export-fixture' } }));
+  const ui = await startUi({ dir: ledger, home, port: 0, open: false });
+  try {
+    const response = await get(ui, 'api/v1/calls/export?day=2026-11-02&tz=UTC&limit=10');
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /^text\/csv/);
+    const lines = (await response.text()).trimEnd().split('\n');
+    assert.equal(lines[0], 'day,time,tool,capability,decision,rule,task');
+    assert.equal(lines.length, 251);
+    assert.equal(lines[1], '"2026-11-02","00:00","read_file","read","ALLOW","ALLOW","export-task"');
+    assert.equal(lines[250], '"2026-11-02","00:04","write_file","write","ALLOW","ALLOW","export-task"');
+    const filtered = await get(ui, 'api/v1/calls/export?day=2026-11-02&tz=UTC&tool=write_file');
+    assert.equal((await filtered.text()).trimEnd().split('\n').length, 51);
   } finally {
     await ui.close();
   }

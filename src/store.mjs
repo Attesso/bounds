@@ -368,6 +368,35 @@ function acquireLock(lock) {
   }
 }
 
+// Serialize stale-lock reclamation. Without this claim two writers can both
+// decide a dead lock is stale; one takes the lock and the other then unlinks
+// the live lock, letting two writers append the same seq. Only the claim
+// owner re-reads and removes the stale lock.
+function claimReclaim(reclaim) {
+  const token = `${process.pid}.${randomBytes(6).toString('hex')}`;
+  const candidate = `${reclaim}.${token}`;
+  const handle = openSync(candidate, 'wx', 0o600);
+  try {
+    writeFileSync(handle, token);
+    fsyncSync(handle);
+  } finally {
+    closeSync(handle);
+  }
+  try {
+    linkSync(candidate, reclaim);
+    return true;
+  } catch (error) {
+    if (error.code === 'EEXIST') return false;
+    throw error;
+  } finally {
+    try {
+      unlinkSync(candidate);
+    } catch {
+      // The candidate was already removed; the claim name is what matters.
+    }
+  }
+}
+
 function withLock(dir, run) {
   const { lock } = paths(dir);
   const deadline = Date.now() + LOCK_WAIT_MS();
@@ -396,18 +425,42 @@ function withLock(dir, run) {
       throw new Error(`the ledger lock at ${lock} has no owner; remove it if no attesso process is running`);
     }
     if (!processAlive(holder)) {
-      // Only unlink the lock we judged stale, not one a new holder just linked.
-      let current = '';
-      try {
-        current = readFileSync(lock, 'utf8').trim();
-      } catch {
+      // Only the claim owner may judge and unlink the lock it read. A second
+      // writer that also saw the stale pid waits here instead of removing a
+      // lock a new holder just created.
+      const reclaim = `${lock}.reclaim`;
+      if (!claimReclaim(reclaim)) {
+        try {
+          const claimRaw = readFileSync(reclaim, 'utf8').trim();
+          const claimPid = Number(claimRaw.split('.')[0]);
+          if (Number.isInteger(claimPid) && claimPid > 0 && !processAlive(claimPid)) {
+            unlinkSync(reclaim);
+          }
+        } catch {
+          // The claim released or was removed; the next iteration re-reads.
+        }
+        sleepSync(LOCK_RETRY_MS + Math.floor(Math.random() * LOCK_RETRY_MS));
         continue;
       }
-      if (current === raw) {
+      try {
+        let current = '';
         try {
-          unlinkSync(lock);
+          current = readFileSync(lock, 'utf8').trim();
         } catch {
-          // Someone else reclaimed it first; the next iteration takes it.
+          continue;
+        }
+        if (current === raw) {
+          try {
+            unlinkSync(lock);
+          } catch {
+            // Another writer reclaimed it first; the next iteration takes it.
+          }
+        }
+      } finally {
+        try {
+          unlinkSync(reclaim);
+        } catch {
+          // The claim is already gone; nothing to release.
         }
       }
       continue;
@@ -449,7 +502,7 @@ function reconcileHead(dir, head, task, publicPem) {
   return { head: repaired, history };
 }
 
-export function append(dir, proposal, { now = new Date(), control } = {}) {
+export function append(dir, proposal, { now = new Date(), control, verdict: forcedVerdict } = {}) {
   return withLock(dir, () => {
     const file = paths(dir);
     repairTornTail(file);
@@ -483,7 +536,7 @@ export function append(dir, proposal, { now = new Date(), control } = {}) {
         }
       : null;
     const pathVerdict = pathConfig ? evaluatePathScope(pathConfig, proposal) : null;
-    const verdict = controlVerdict ?? toolVerdict ?? pathVerdict ?? decide({ policy, rules, history, proposal, now });
+    const verdict = forcedVerdict ?? controlVerdict ?? toolVerdict ?? pathVerdict ?? decide({ policy, rules, history, proposal, now });
     const toolPin = toolLock
       ? (toolVerdict?.tool_pin ?? (toolHash ? 'verified' : 'unverified'))
       : undefined;
@@ -524,5 +577,38 @@ export function append(dir, proposal, { now = new Date(), control } = {}) {
     writeJson(file.config, { version: 1, head: { count: seq, hash: entryHash(entry) } });
     publishDecision(entry);
     return entry;
+  });
+}
+
+// appendUsage records measured model usage. It is not a policy decision, so it
+// skips evaluation and is always ALLOW; the tool-call readers filter it out by
+// action and the usage readers join it to the task like any other report.
+export function appendUsage(dir, { task, model, inputTokens = 0, outputTokens = 0, cachedTokens = 0, costUsd = 0 } = {}, { now = new Date() } = {}) {
+  const tokens = [inputTokens, outputTokens, cachedTokens, costUsd];
+  if (tokens.some((value) => typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+    throw new Error('usage values must be non-negative numbers');
+  }
+  if (task !== undefined && (typeof task !== 'string' || task.length > 128)) {
+    throw new Error('usage task must be a string of at most 128 characters');
+  }
+  if (model !== undefined && (typeof model !== 'string' || model.length > 100)) {
+    throw new Error('usage model must be a string of at most 100 characters');
+  }
+  const usage = {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cached_tokens: cachedTokens,
+    cost_usd: costUsd,
+  };
+  if (model !== undefined) usage.model = model;
+  return append(dir, {
+    action: 'llm.session',
+    subject: model ?? 'model',
+    task,
+    capability: 'model',
+    meta: { usage },
+  }, {
+    now,
+    verdict: { decision: 'ALLOW', code: 'ALLOWED', rule: 'usage.reported' },
   });
 }

@@ -4,6 +4,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { entryHash } from './ledger.mjs';
+import { normalizeUsage } from './usage.mjs';
 import { forEachEntrySync } from './stream.mjs';
 import { paths, readKey } from './store.mjs';
 
@@ -41,6 +42,27 @@ function endpoint(base) {
   return parsed.toString();
 }
 
+function usageFromEntry(entry) {
+  let usage;
+  try {
+    usage = normalizeUsage(entry);
+  } catch {
+    return null;
+  }
+  // Only an explicit input/output split is mirrored; a bare total is not guessed.
+  if (!usage || !usage.split) return null;
+  return {
+    seq: entry.seq,
+    occurred_at: entry.at,
+    task: entry.task ?? null,
+    model: usage.model ?? null,
+    input_tokens: usage.input_tokens,
+    output_tokens: usage.output_tokens,
+    cached_tokens: usage.cached_tokens,
+    cost_usd: usage.cost_usd,
+  };
+}
+
 export async function sync({
   dir,
   url,
@@ -65,27 +87,35 @@ export async function sync({
     state = { version: SYNC_VERSION, last_seq: 0 };
   }
   const entries = [];
+  const usage = [];
+  let lastSeq = state.last_seq;
   forEachEntrySync(ledgerPath, (entry) => {
     if (entry.seq <= state.last_seq) return;
-    if (entries.length >= limit) return false;
-    entries.push({
-      seq: entry.seq,
-      occurred_at: entry.at,
-      action: entry.action,
-      subject: entry.subject ?? null,
-      capability: entry.capability ?? null,
-      decision: entry.decision,
-      code: entry.code,
-      task: entry.task ?? null,
-      entry_hash: entryHash(entry),
-    });
+    if (entries.length + usage.length >= limit) return false;
+    const reported = usageFromEntry(entry);
+    if (reported) usage.push(reported);
+    if (entry.action !== 'llm.session') {
+      entries.push({
+        seq: entry.seq,
+        occurred_at: entry.at,
+        action: entry.action,
+        subject: entry.subject ?? null,
+        capability: entry.capability ?? null,
+        decision: entry.decision,
+        code: entry.code,
+        task: entry.task ?? null,
+        entry_hash: entryHash(entry),
+      });
+    }
+    lastSeq = entry.seq;
   });
-  if (entries.length === 0) {
-    return { accepted: 0, skipped: 0, metered: 0, last_seq: state.last_seq, device_id: deviceId };
+  if (entries.length === 0 && usage.length === 0) {
+    return { accepted: 0, skipped: 0, metered: 0, usage: 0, last_seq: state.last_seq, device_id: deviceId };
   }
   const body = { device_id: deviceId, entries };
+  if (usage.length > 0) body.usage = usage;
   if (dryRun) {
-    return { accepted: 0, skipped: 0, metered: 0, last_seq: state.last_seq, device_id: deviceId, dry_run: true, entries: entries.length };
+    return { accepted: 0, skipped: 0, metered: 0, usage: 0, last_seq: state.last_seq, device_id: deviceId, dry_run: true, entries: entries.length, usage_rows: usage.length };
   }
   const response = await fetchImpl(endpoint(url), {
     method: 'POST',
@@ -108,12 +138,12 @@ export async function sync({
   const accepted = Number(payload.accepted);
   const skipped = Number(payload.skipped);
   const metered = Number(payload.metered);
-  if (![accepted, skipped, metered].every(Number.isSafeInteger) || accepted < 0 || skipped < 0 || metered < 0) {
+  const usageRows = payload.usage === undefined ? 0 : Number(payload.usage);
+  if (![accepted, skipped, metered, usageRows].every(Number.isSafeInteger) || accepted < 0 || skipped < 0 || metered < 0 || usageRows < 0) {
     throw new Error('sync response is invalid');
   }
-  const lastSeq = entries[entries.length - 1].seq;
   writeSyncState(dir, lastSeq, deviceId);
-  return { accepted, skipped, metered, last_seq: lastSeq, device_id: deviceId };
+  return { accepted, skipped, metered, usage: usageRows, last_seq: lastSeq, device_id: deviceId };
 }
 
 
@@ -135,7 +165,7 @@ export async function watchSync({
   while (!signal?.aborted) {
     try {
       const result = await sync({ dir, url, key, limit });
-      if (result.accepted || result.skipped || result.metered) onResult(result);
+      if (result.accepted || result.skipped || result.metered || result.usage) onResult(result);
     } catch (error) {
       onResult(error);
     }

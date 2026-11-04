@@ -33,11 +33,11 @@ snapshot file. `Ctrl-C` stops it.
 
 ## Hosted sync
 
-Hosted sync is the paid tier: it mirrors the next decisions into the Attesso
-workspace so the hosted view can follow them from any machine. The local ledger
-stays the source of truth. The command sends at most 50 rows per run, advances a
-cursor under `.attesso/sync.json` only after the server confirms, and never sends
-arguments or credentials:
+Hosted sync is the paid tier: it mirrors the next decision summaries, and any
+measured token usage, into the Attesso workspace so the hosted view can follow
+them from any machine. The local ledger stays the source of truth. A batch holds
+at most 50 rows, advances a cursor under `.attesso/sync.json` only after the
+server confirms it, and never sends arguments, prompts or credentials:
 
 ```sh
 npx attesso ui
@@ -52,6 +52,59 @@ The local UI writes the URL and key to `~/.config/attesso/config.json` with mode
 then `ATTESSO_SYNC_URL` / `ATTESSO_API_KEY`, then the workspace config. The UI
 never returns the key, and the free local tier needs no connection. **Sync now**
 in the workspace panel runs the same batch as `attesso sync`.
+
+The hosted overview is at `/dashboard/<env>/bounds/hosted`. It shows the lifetime
+decision and refusal counts, device sync health, the refusal reasons and tool
+activity for the last 24 hours, the three newest open refusals, the five newest
+decisions, and the token card described below. Once a workspace has synced a
+decision, the dashboard's Bounds entry opens this page directly;
+`/dashboard/<env>/bounds?setup=1` keeps the local setup instructions.
+
+Every preview has a full page:
+
+- `/dashboard/<env>/bounds/reviews` lists every refusal with status, code and
+  device filters. Closing an item records a control-plane resolution or an
+  ignore; it never changes the local verdict, the policy or the signed ledger.
+- `/dashboard/<env>/bounds/decisions` lists every mirrored decision, newest
+  first, with decision (all, ALLOW, DENY), code, device and window filters (24
+  hours, 7 days, 30 days, all time). The refusal-reason links on the overview
+  open this page filtered to that code.
+
+Both pages use a keyset cursor, so "Older" continues exactly where the page
+ended and a filtered URL can be shared or reloaded.
+
+## Token usage and the 24-hour summary
+
+The overview never infers a number from decision counts. `attesso usage` records
+one measured model request against the task (for a hook, the session id):
+
+```sh
+npx attesso usage --task SESSION --input 12000 --output 800 --cached 64000 \
+  --cost 0.0042 --model MODEL
+```
+
+A harness hook can call it on every model response. For Hermes, the
+`post_api_request` event carries the usage under `extra`, so the hook script is:
+
+```sh
+#!/bin/sh
+npx attesso --dir ~/.hermes/attesso-veto/ledger4 usage --stdin --json >/dev/null 2>&1 || true
+```
+
+with this entry in `~/.hermes/config.yaml`:
+
+```yaml
+hooks:
+  post_api_request:
+    - command: /Users/you/.hermes/attesso-veto/usage-hook.sh
+      timeout: 10
+```
+
+`attesso sync` sends usage rows beside the decision summaries. Usage rows are
+not metered; only decision rows are billed at $0.00085. The 24-hour card leads
+with what needs a decision: refused calls, decisions, measured coverage and open
+reviews, all exact. The measured token total (input, output, sessions, reported
+cost) is one line below it. No figure is inferred from decisions.
 
 ## Hosted policy
 
@@ -85,7 +138,7 @@ task                                actions  refused    top              tokens 
 hermes-local-9552aa28437e88c0610a…  2058     455 (22%)  PATH_DENIED×455  3,922,488  645,785,088  3.1932
 ```
 
-Actions are tool calls; refusals carry the reason; tokens are input plus output, with cache reads shown separately because they bill at a different rate and dwarf the rest. Cost comes from a `llm.session` entry the recorder writes from the agent's own usage record, never from a number the report invents. `--json` gives the same data for a dashboard.
+Actions are tool calls; refusals carry the reason; tokens are input plus output, with cache reads shown separately because they bill at a different rate and dwarf the rest. Cost comes from an `llm.session` entry written by `attesso usage` (or another recorder) from the agent's own usage record, never from a number the report invents. `--json` gives the same data for a dashboard.
 
 ## Watch and steer
 
@@ -148,14 +201,21 @@ node bin/attesso.mjs --dir ~/.hermes/attesso-veto/ledger hook --observe
 ```
 
 `setup --write` installs the same command in each detected harness. The Hermes
-config (`~/.hermes/config.yaml`) looks like this:
+config (`~/.hermes/config.yaml`) carries two hooks when usage reporting is on:
+`pre_tool_call` decides each call, `post_api_request` records measured tokens:
 
 ```yaml
 hooks:
   pre_tool_call:
     - command: npx attesso --dir ~/.attesso hook
       timeout: 10
+  post_api_request:
+    - command: ~/.hermes/attesso-veto/usage-hook.sh
+      timeout: 10
 ```
+
+The usage hook is a one-line wrapper around `npx attesso --dir LEDGER usage
+--stdin --json`; it is best-effort and never blocks the request.
 
 Codex requires one manual trust step: run `/hooks` in Codex, review the installed
 command and trust it. A changed hook definition is untrusted again. The other

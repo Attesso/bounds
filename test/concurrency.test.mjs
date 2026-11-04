@@ -16,6 +16,16 @@ const logAsync = (dir, args) =>
     child.on('close', (code) => resolve({ code, stderr }));
   });
 
+const usageAsync = (dir, task) =>
+  new Promise((resolve) => {
+    const child = spawn('node', [bin, '--dir', dir, 'usage', '--task', task, '--input', '10', '--output', '5'], { encoding: 'utf8' });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('close', (code) => resolve({ code, stderr }));
+  });
+
 test('eight writers produce one chain with no lost decision', async () => {
   const dir = initWorkspace('attesso-race');
   const results = await Promise.all(
@@ -29,6 +39,25 @@ test('eight writers produce one chain with no lost decision', async () => {
   assert.equal(state.entries.length, 8);
   assert.deepEqual(state.entries.map((entry) => entry.seq), [1, 2, 3, 4, 5, 6, 7, 8]);
   assert.equal(new Set(state.entries.map((entry) => entry.subject)).size, 8);
+  assert.equal(verifyChain(state.entries, state.key.public, state.config.head).ok, true);
+});
+
+test('mixed log and usage writers keep one chain and every sequence', async () => {
+  const dir = initWorkspace('attesso-race-mixed');
+  const results = await Promise.all([
+    ...Array.from({ length: 4 }, (_, index) =>
+      logAsync(dir, ['--action', 'tool.call', '--subject', `s${index}`, '--capability', 'read']),
+    ),
+    ...Array.from({ length: 4 }, (_, index) => usageAsync(dir, `t${index}`)),
+  ]);
+  for (const result of results) assert.equal(result.code, 0, result.stderr);
+
+  const state = readState(dir);
+  assert.deepEqual(
+    state.entries.map((entry) => entry.seq),
+    [1, 2, 3, 4, 5, 6, 7, 8],
+  );
+  assert.equal(state.entries.filter((entry) => entry.action === 'llm.session').length, 4);
   assert.equal(verifyChain(state.entries, state.key.public, state.config.head).ok, true);
 });
 

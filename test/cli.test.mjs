@@ -18,6 +18,30 @@ const run = (cwd, ...args) => {
 
 const workspace = () => mkdtempSync(join(tmpdir(), 'attesso-cli-'));
 
+test('usage reads a Hermes hook payload from stdin', () => {
+  const dir = workspace();
+  assert.equal(run(dir, 'init').code, 0);
+  const payload = JSON.stringify({
+    hook_event_name: 'post_api_request',
+    session_id: 'sess_hook',
+    extra: { model: 'test-model', usage: { input_tokens: 1200, output_tokens: 300 } },
+  });
+  const result = spawnSync('node', [bin, '--dir', '.attesso', 'usage', '--stdin', '--json'], {
+    cwd: dir,
+    input: payload,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).tokens, 1500);
+  const lines = readFileSync(join(dir, '.attesso/ledger.jsonl'), 'utf8').trim().split('\n');
+  const entry = JSON.parse(lines.at(-1));
+  assert.equal(entry.action, 'llm.session');
+  assert.equal(entry.task, 'sess_hook');
+  assert.equal(entry.meta.usage.input_tokens, 1200);
+  assert.equal(entry.meta.usage.output_tokens, 300);
+  assert.equal(entry.meta.usage.model, 'test-model');
+});
+
 test('init, log, verify and show work end to end', () => {
   const dir = workspace();
   const init = run(dir, 'init');

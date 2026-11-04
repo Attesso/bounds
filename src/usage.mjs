@@ -24,9 +24,13 @@ export function normalizeUsage(entry) {
     task: entry.task ?? '(unscoped)',
     seq: entry.action === 'llm.session' ? null : entry.seq,
     tokens: total,
+    input_tokens: input,
+    output_tokens: output,
     cached_tokens: source.cached_tokens === undefined ? 0 : numeric(source.cached_tokens, 'cached_tokens'),
     cost_usd: source.cost_usd === undefined ? 0 : numeric(source.cost_usd, 'cost_usd'),
     api_calls: source.api_calls === undefined ? 0 : numeric(source.api_calls, 'api_calls'),
+    model: typeof source.model === 'string' ? source.model : undefined,
+    split: source.input_tokens !== undefined || source.output_tokens !== undefined,
     source: entry.action === 'llm.session' ? 'session' : 'call',
   };
 }

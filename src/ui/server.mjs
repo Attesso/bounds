@@ -16,7 +16,7 @@ import { isInitialised, paths, readEntries } from '../store.mjs';
 import { sync } from '../sync.mjs';
 import { Catalog, validateTimeZone } from './catalog.mjs';
 import { usageForDay } from '../usage.mjs';
-import { days as queryDays, flow as queryFlow, page as queryPage, parseCursor, parseDay, parseLimit, summary as querySummary } from './query.mjs';
+import { days as queryDays, exportCsv as queryExportCsv, flow as queryFlow, page as queryPage, parseCursor, parseDay, parseLimit, summary as querySummary } from './query.mjs';
 import { LedgerTail } from './live.mjs';
 
 const UI_ROOT = dirname(fileURLToPath(import.meta.url));
@@ -262,6 +262,14 @@ export function startUi({
               timeZone,
               after: cursor.seq,
               limit: parseLimit(url.searchParams.get('limit'), { fallback: 100, max: 200 }),
+              filters: callFilters(url),
+            }));
+          }
+          if (url.pathname === '/api/v1/calls/export') {
+            const day = url.searchParams.get('day') ? parseDay(url.searchParams.get('day'), timeZone) : null;
+            return send(req, res, 200, 'text/csv; charset=utf-8', queryExportCsv(catalog, {
+              day,
+              timeZone,
               filters: callFilters(url),
             }));
           }

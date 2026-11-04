@@ -12,7 +12,7 @@ import { packetFor, verifyPacket } from './../src/packet.mjs';
 import { resolveWorkspace } from './../src/workspace.mjs';
 import { formatMinor, toMinor, validatePolicy } from './../src/policy.mjs';
 import { checkpointFor, receiptFor, signerOf, verifyPinned, verifyReceipt } from './../src/receipt.mjs';
-import { append, init, isInitialised, paths, readState, readToolLock, setRulesProfile, verifyLedger, withLedgerLock, writeMcpManifest, writeToolLock } from './../src/store.mjs';
+import { append, appendUsage, init, isInitialised, paths, readState, readToolLock, setRulesProfile, verifyLedger, withLedgerLock, writeMcpManifest, writeToolLock } from './../src/store.mjs';
 import { buildReportStream, renderReport } from './../src/report.mjs';
 import { replay, renderReplay } from './../src/replay.mjs';
 import { watchEntries } from './../src/watch.mjs';
@@ -89,9 +89,13 @@ const USAGE = `attesso: a local, signed ledger of what your agents attempted
                                      verify the hosted rule bundle and optionally
                                      write rules.json (workspace config or ATTESSO_API_KEY)
   attesso sync [--url URL] [--limit N] [--json] [--dry-run] [--watch]
-                                     send the next decisions to the hosted mirror
+                                     sync decisions and usage to the hosted mirror
                                      --watch keeps it current every 5 seconds
                                      (workspace config or ATTESSO_API_KEY; never printed)
+  attesso usage [--stdin] [--task T] [--input N] [--output N] [--cached N]
+                 [--cost USD] [--model M] [--json]
+                                     record measured token usage for a task; --stdin
+                                     reads a harness hook payload
   attesso explain <seq>              one entry in full: rule, tainting step, what to do
   attesso suggest [--json]           rules the ledger's own counts justify
   attesso tools pin --manifest PATH  pin the tool definitions a decision was made under
@@ -703,6 +707,38 @@ switch (command) {
     }
     break;
   }
+  case 'usage': {
+    try {
+      requireLedger();
+      const options = flags(rest);
+      let payload = {};
+      if (rest.includes('--stdin')) {
+        const raw = readFileSync(0, 'utf8').trim();
+        if (raw !== '') payload = JSON.parse(raw);
+      }
+      const extra = payload.extra && typeof payload.extra === 'object' ? payload.extra : {};
+      const reported = payload.usage && typeof payload.usage === 'object'
+        ? payload.usage
+        : extra.usage && typeof extra.usage === 'object' ? extra.usage : {};
+      const task = options.task ?? payload.session_id ?? payload.task_id ?? extra.task_id;
+      if (typeof task !== 'string' || task === '') {
+        throw new Error('a task is required (--task or a hook payload with session_id)');
+      }
+      const number = (value, fallback) => (value === undefined ? fallback : Number(value));
+      const inputTokens = number(options.input, Number(reported.input_tokens ?? 0));
+      const outputTokens = number(options.output, Number(reported.output_tokens ?? 0));
+      const cachedTokens = number(options.cached, Number(reported.cached_tokens ?? 0));
+      const costUsd = number(options.cost, Number(reported.cost_usd ?? 0));
+      const model = options.model ?? payload.model ?? extra.model;
+      const entry = appendUsage(DIR, { task, model, inputTokens, outputTokens, cachedTokens, costUsd });
+      if (options.json) console.log(JSON.stringify({ seq: entry.seq, task, tokens: inputTokens + outputTokens }, null, 2));
+      else console.log(`usage: ${inputTokens + outputTokens} tokens recorded for ${task} (#${entry.seq})`);
+    } catch (error) {
+      console.error(`usage: ${error.message}`);
+      process.exit(2);
+    }
+    break;
+  }
   case 'sync': {
     try {
       const options = flags(rest);
@@ -724,15 +760,15 @@ switch (command) {
           onResult: (result) => {
             if (result instanceof Error) console.error(`sync: ${result.message}`);
             else if (options.json) console.log(JSON.stringify(result, null, 2));
-            else console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered; last #${result.last_seq}`);
+            else console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered, ${result.usage ?? 0} usage; last #${result.last_seq}`);
           },
         });
         break;
       }
       const result = await sync({ dir: DIR, url, key, limit: requested, dryRun: rest.includes('--dry-run') });
       if (options.json) console.log(JSON.stringify(result, null, 2));
-      else if (result.dry_run) console.log(`sync dry run: ${result.entries} decision(s) ready`);
-      else console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered; last #${result.last_seq}`);
+      else if (result.dry_run) console.log(`sync dry run: ${result.entries} decision(s) and ${result.usage_rows} usage row(s) ready`);
+      else console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered, ${result.usage ?? 0} usage; last #${result.last_seq}`);
     } catch (error) {
       console.error(`sync: ${error.message}`);
       process.exit(2);
