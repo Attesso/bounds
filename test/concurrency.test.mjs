@@ -26,6 +26,14 @@ const usageAsync = (dir, task) =>
     child.on('close', (code) => resolve({ code, stderr }));
   });
 
+const waitFor = async (predicate, ms = 5000) => {
+  const deadline = Date.now() + ms;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return predicate();
+};
+
 test('eight writers produce one chain with no lost decision', async () => {
   const dir = initWorkspace('attesso-race');
   const results = await Promise.all(
@@ -147,7 +155,7 @@ test('verify waits out a writer between the line and its head', async () => {
     '-e',
     `const fs=require('fs');fs.writeFileSync(${JSON.stringify(lock)},String(process.pid));setTimeout(()=>{fs.writeFileSync(${JSON.stringify(config)},${JSON.stringify(JSON.stringify({ version: 1, head }))});fs.unlinkSync(${JSON.stringify(lock)});},80);`,
   ]);
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(await waitFor(() => existsSync(lock)), true, 'writer never took the lock');
 
   const result = runCli(other, 'verify');
   writer.kill();
@@ -186,7 +194,8 @@ test('a killed lock holder is reclaimed', async () => {
     '-e',
     `const fs=require('fs');fs.writeFileSync(${JSON.stringify(lock)},String(process.pid));setInterval(()=>{},1000);`,
   ]);
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  await waitFor(() => existsSync(lock));
+  assert.equal(existsSync(lock), true, 'holder never wrote its lock');
   holder.kill('SIGKILL');
   await new Promise((resolve) => holder.on('close', resolve));
   assert.equal(existsSync(lock), true);
@@ -215,7 +224,7 @@ test('a writer waits for a live lock holder instead of losing the decision', asy
     '-e',
     `const fs=require('fs');const p=${JSON.stringify(lock)};fs.writeFileSync(p,String(process.pid));setTimeout(()=>{try{fs.unlinkSync(p)}catch{}},400);`,
   ]);
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.equal(await waitFor(() => existsSync(lock)), true, 'holder never took the lock');
 
   const result = runCli(dir, 'log', '--action', 'tool.call', '--subject', 'waited', '--capability', 'read');
   assert.equal(result.status, 0, result.stderr);
