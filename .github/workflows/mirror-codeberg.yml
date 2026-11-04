@@ -1,0 +1,25 @@
+name: mirror-codeberg
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Push main to Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          test -n "$CODEBERG_TOKEN"
+          git remote add codeberg "https://douwe:${CODEBERG_TOKEN}@codeberg.org/douwe/bounds.git"
+          git push codeberg HEAD:main
