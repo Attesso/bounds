@@ -1,0 +1,37 @@
+{
+  "name": "attesso",
+  "version": "0.11.1",
+  "description": "Bounds: decide an AI agent's next tool call before it runs, with a signed record. Free and unlimited locally, $0.00085 per synced decision.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "attesso": "bin/attesso.mjs",
+    "attesso-mcp": "bin/attesso-mcp.mjs",
+    "attesso-control-mcp": "bin/attesso-control-mcp.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "node --test test/*.test.mjs"
+  },
+  "keywords": [
+    "ai-agents",
+    "agent-governance",
+    "audit",
+    "ledger",
+    "guardrails"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Attesso/bounds.git"
+  }
+}

@@ -1,0 +1,1903 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="bounds-token" content="__BOUNDS_TOKEN__">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bounds</title>
+<style>
+  :root {
+    --paper:#f7f8fa; --ink:#0b0d10; --rail:#f1f4f8; --line:#e1e4e8;
+    --muted:#667085; --body:#344054; --accent:#c93f63;
+    --deny:#a63a39; --deny-bg:#fff7f6; --deny-line:#f1c9c4;
+    --allow:#2f7d5a; --allow-bg:#f1f8f3; --allow-line:#cfe3d6;
+    --ask:#8a5a00; --ask-bg:#fff8e8; --ask-line:#e7c37a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink)}
+  body{font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  button,input,select{font:inherit}
+  .shell{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:100vh}
+  .rail{background:var(--rail);border-right:1px solid var(--line);padding:8px}
+  .wordmark{display:block;padding:10px 8px 22px;font:13px var(--mono);text-decoration:none;color:var(--ink)}
+  .rail-label{padding:14px 8px 6px;color:var(--muted);font:10px var(--mono);letter-spacing:.05em}
+  .workspace{border-top:1px solid #d8dee7;border-bottom:1px solid #d8dee7;margin:0 8px;padding:13px 0}
+  .workspace-name{margin-top:8px;display:flex;align-items:center;gap:8px;font-size:14px}
+  .workspace-status{color:var(--muted);font:9px var(--mono);margin-top:5px;overflow-wrap:anywhere}
+  .workspace .small-button{width:100%;margin-top:9px;text-align:left}
+  .workspace-panel{border-bottom:1px solid var(--line);background:#fff;padding:12px 30px 14px}
+  .workspace-panel h2{font-size:13px;margin:0 0 5px}
+  .workspace-panel p{color:var(--muted);font-size:11px;margin:4px 0}
+  .workspace-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}
+  .workspace-form label{display:grid;gap:4px;color:var(--muted);font:9px var(--mono)}
+  .workspace-form input{border:1px solid var(--line);background:#fff;padding:6px 7px;font:11px var(--mono);min-width:0}
+  .workspace-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .workspace-actions .danger{margin-left:auto;color:var(--deny);border-color:var(--deny-line)}
+  .workspace-error{color:var(--deny);font:10px var(--mono)}
+  #workspace-sync-status{max-width:100%}
+  @media(max-width:700px){.workspace-form{grid-template-columns:1fr}.workspace-panel{padding:12px 16px 14px}}
+  .avatar{width:20px;height:20px;border-radius:3px;background:#635bff;color:#fff;display:inline-grid;place-items:center;font:11px var(--mono)}
+  .nav{display:block;padding:8px;border-left:2px solid transparent;text-decoration:none;color:var(--body);font-size:13px}
+  .nav.active{background:#fff;border-left-color:var(--accent);color:var(--ink);font-weight:600}
+  .nav.muted{color:var(--muted)}
+  .bottom{margin:22px 8px 0;padding-top:14px;border-top:1px solid #d8dee7;display:flex;justify-content:space-between;gap:12px;align-items:center;color:var(--muted);font:10px var(--mono)}
+  .main{min-width:0}
+  .agentbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 30px;background:#fff8e8;border-bottom:1px solid var(--ask-line);color:var(--body)}
+  .agentbar.connected{background:var(--allow-bg);border-bottom-color:var(--allow-line)}
+  .agent-main{display:flex;align-items:center;gap:9px;min-width:0}
+  .agent-dot{width:7px;height:7px;border-radius:50%;background:#d58d3b;flex:0 0 auto}
+  .agentbar.connected .agent-dot{background:var(--allow)}
+  .agent-title{font:11px var(--mono);font-weight:600;display:block}
+  .agent-sub{display:block;color:var(--muted);font:9px var(--mono);margin-top:2px}
+  .agent-actions{display:flex;gap:5px;align-items:center}
+  .agent-setup{border-bottom:1px solid var(--line);background:#fff;padding:12px 30px 14px}
+  .agent-setup h2{font-size:13px;margin:0 0 5px}
+  .agent-setup p{color:var(--muted);font-size:11px;margin:4px 0}
+  .agent-setup pre{margin:7px 0;background:var(--paper);border:1px solid var(--line);padding:8px 10px;font:10px var(--mono);overflow:auto;white-space:pre-wrap}
+  .agent-setup-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  .agent-setup-head h2{margin:0}
+  .agent-setup-head p{margin:4px 0 0}
+  .agent-state{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:11px 0 13px}
+  .agent-kv{border-top:1px solid var(--line);padding-top:6px;min-width:0}
+  .agent-kv span{display:block;color:var(--muted);font:9px var(--mono);margin-bottom:3px}
+  .agent-kv b{display:block;font:10px var(--mono);font-weight:500;overflow-wrap:anywhere;white-space:normal;line-height:1.35}
+  .agent-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .agent-modes{display:inline-flex;border:1px solid var(--line)}
+  .agent-modes button{border:0;border-right:1px solid var(--line);background:#fff;color:var(--body);padding:6px 9px;font:10px var(--mono);cursor:pointer}
+  .agent-modes button:last-child{border-right:0}
+  .agent-modes button:hover{background:var(--paper)}
+  .agent-modes button.on{background:var(--ink);color:#fff}
+  .agent-modes button[data-agent-mode="enforce"].on{background:var(--deny);border-color:var(--deny)}
+  .agent-modes button[data-agent-mode="off"].on{background:var(--muted)}
+  .agent-modes button:disabled{opacity:.4;cursor:default}
+  .agent-mode-note{color:var(--muted);font-size:10px;margin:6px 0 0;line-height:1.45}
+  .agent-setup-details{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+  .agent-setup-details summary{cursor:pointer;color:var(--muted);font:10px var(--mono)}
+  .agent-setup-details summary:hover{color:var(--ink)}
+  .agent-setup-details p{font-size:10px}
+  .topbar{height:56px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 30px}
+  .crumbs{display:flex;align-items:center;gap:8px;min-width:0;color:var(--muted);font:11px var(--mono)}
+  .crumbs .current{color:var(--ink)}
+  .badge{border:1px solid #ead6b3;background:#fbf5e8;color:#7a4b12;padding:2px 6px;font-size:10px}
+  .actions{display:flex;gap:7px;align-items:center}
+  .button{border:1px solid #d0d5dd;background:#fff;color:var(--body);padding:7px 11px;font-size:12px;cursor:pointer}
+  .button:disabled{opacity:.4;cursor:default}
+  .button.primary{border-color:var(--ink);background:var(--ink);color:#fff}
+  .button:hover{background:#f2f4f7}
+  .page{max-width:1440px;padding:24px 30px 48px}
+  .title-row{display:flex;align-items:end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  h1{font-size:30px;line-height:1.1;letter-spacing:-.03em;margin:0}
+  h2{font-size:15px;margin:0}
+  .hint{color:var(--muted);font-size:11px}
+  .daybar{display:grid;grid-template-columns:minmax(220px,1fr) auto minmax(160px,.4fr);gap:22px;align-items:center;border-bottom:1px solid var(--line);padding:16px 0;margin-top:18px}
+  .daynav{display:flex;align-items:center;gap:10px;min-width:0}
+  .dayarrow{width:24px;height:24px;border:1px solid var(--line);background:#fff;color:var(--muted);font:12px var(--mono);cursor:pointer}
+  .dayarrow:hover{color:var(--ink);border-color:#c8ced8}
+  .dayarrow:disabled{opacity:.35;cursor:default}
+  .daylabel{font-size:13px;font-weight:600;white-space:nowrap}
+  .daystats{color:var(--muted);font:10px var(--mono);margin-top:5px;white-space:nowrap}
+  .daystats strong{color:var(--body);font-weight:500}
+  .rate{display:inline-block;border:1px solid var(--deny-line);background:var(--deny-bg);color:var(--deny);padding:1px 4px;margin-left:6px;font-size:9px}
+  .week{display:flex;gap:8px;align-items:end;justify-content:center}
+  .day{display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;padding:0 4px;cursor:pointer;color:var(--muted)}
+  .day:hover .daydate{color:var(--ink)}
+  .day.active .daydate{color:var(--ink);font-weight:600}
+  .day .bar{height:38px;width:15px;display:flex;align-items:end;background:#e9edf2;position:relative;border:1px solid transparent}
+  .day.active .bar{border-color:var(--accent)}
+  .day .bar i{display:block;width:100%;background:#9aa6b5}
+  .day .bar b{position:absolute;left:0;bottom:0;width:100%;background:var(--deny);opacity:.72}
+  .daydate{font:9px var(--mono);white-space:nowrap}
+  .daymeta{color:var(--muted);font:9px var(--mono);white-space:nowrap}
+  .micro{color:var(--muted);font:9px var(--mono);margin-top:4px}
+
+  .flow-wrap{border:1px solid var(--line);background:#fff;margin-top:16px;position:relative}
+  .flow-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .flow-title{font-size:13px;font-weight:600}
+  .flow-sub{color:var(--muted);font:10px var(--mono);margin-top:4px}
+  .flow-tools{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .zoom-level{min-width:24px;text-align:center;color:var(--muted);font:9px var(--mono)}
+  .small-button{border:1px solid var(--line);background:#fff;color:var(--body);padding:4px 7px;font:10px var(--mono);cursor:pointer}
+  .small-button:hover{background:var(--paper);color:var(--ink)}
+  .flowfilters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);background:#fcfcfd}
+  .flowfilters input{flex:1;min-width:160px;border:1px solid var(--line);background:#fff;padding:5px 6px;font:10px var(--mono)}
+  .flowfilters select{border:1px solid var(--line);background:#fff;padding:4px 5px;font:10px var(--mono)}
+  .flowfilters .search-count{margin-left:auto}
+  .search-count{color:var(--muted);font:9px var(--mono);white-space:nowrap}
+  .flow-scroller{overflow-x:auto;overflow-y:hidden;scrollbar-color:#c3c9d3 #f2f4f7}
+  .flow-track{position:relative;width:2880px;height:250px}
+  .flow-hours{position:absolute;top:0;left:0;right:0;height:22px;border-bottom:1px solid var(--line)}
+  .flow-hour{position:absolute;top:0;bottom:0;border-left:1px solid #edf0f4;color:var(--muted);font:8px var(--mono);padding:4px 0 0 3px;white-space:nowrap}
+  .flow-hour.major{border-left-color:#dce2ea}
+  .flow-lanes{position:absolute;top:22px;left:0;right:0;bottom:0}
+  .f-lane{position:relative;height:45px;border-bottom:1px solid var(--line)}
+  .f-label{position:sticky;left:0;z-index:4;display:flex;align-items:center;width:66px;height:100%;padding-left:14px;background:#fff;color:var(--muted);font:9px var(--mono);letter-spacing:.04em}
+  .f-track{position:absolute;top:0;bottom:0;left:66px;right:0}
+  .f-lane:last-child{border-bottom:0}
+  .fm{position:absolute;top:7px;width:3px;height:30px;border:0;padding:0;background:#9aa6b5;cursor:pointer;transform:translateX(-50%);border-radius:2px}
+  .fm.allow{background:#6f9d86}
+  .fm.deny{background:var(--accent);opacity:.9}
+  .fm:hover{outline:1px solid var(--ink);outline-offset:1px;z-index:5}
+  .fm.selected{outline:2px solid var(--ink);outline-offset:1px;z-index:6}
+  .fm.draft-allow{background:var(--allow)}
+  .fm.draft-deny{background:var(--deny)}
+  .fm.draft-ask{background:var(--ask)}
+  .fm.detail{height:34px;padding:2px 4px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;color:#fff;font:7px/1.15 var(--mono);overflow:hidden;text-align:left}
+  .fm.detail .fm-time{font-size:8px;font-weight:600;letter-spacing:.01em}
+  .fm.detail .fm-label{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.92}
+  .fm.detail .fm-count{position:absolute;right:3px;bottom:2px;font-size:8px;font-weight:600;opacity:.86}
+  .fm.detail.wide{font-size:8px;padding:3px 6px}
+  .fm.detail.wide .fm-time{font-size:9px}
+  .fm.detail.wide .fm-count{font-size:9px}
+  .fm.mixed{background:linear-gradient(180deg,var(--accent) 0 50%,#6f9d86 50% 100%)}
+  .fm.has-draft{box-shadow:0 0 0 1px var(--ask-line)}
+  .fp-list{display:grid;gap:0;margin-top:9px;border-top:1px solid var(--line)}
+  .fp-row{display:grid;grid-template-columns:48px 1fr auto;gap:8px;align-items:center;border:0;border-bottom:1px solid var(--line);background:#fff;color:var(--body);padding:7px 3px;text-align:left;font:10px var(--mono);cursor:pointer}
+  .fp-row[hidden]{display:none}
+  .fp-row:hover{background:var(--paper)}
+  .fp-row .deny{color:var(--deny)}.fp-row .allow{color:#1f5c40}
+  .fp-more{border:0;border-bottom:1px solid var(--line);background:#fff;color:var(--muted);font:10px var(--mono);padding:8px 2px;text-align:left;cursor:pointer}
+  .fp-more:hover{color:var(--ink);background:var(--paper)}
+  .fp-list.expanded{max-height:220px;overflow-y:auto}
+  .flow-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--line);color:var(--muted);font:9px var(--mono)}
+  .flow-legend span{display:inline-flex;align-items:center;gap:5px}
+  .swatch{display:inline-block;width:6px;height:12px;background:#9aa6b5}
+  .swatch.allow{background:#6f9d86}.swatch.deny{background:var(--accent)}.swatch.ask{background:var(--ask)}
+
+  .fp{position:absolute;z-index:20;width:420px;background:#fff;border:1px solid var(--ink);box-shadow:0 10px 28px rgba(11,13,16,.16);padding:14px 16px}
+  .fp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font:10px var(--mono)}
+  .fp-close{border:0;background:transparent;color:var(--muted);font:16px/1 var(--mono);cursor:pointer;padding:0 2px}
+  .fp-close:hover{color:var(--ink)}
+  .fp-title{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:7px 0 9px}
+  .fp-title strong{font-size:17px;font-weight:600}
+  .fp-code{font:10px var(--mono);color:var(--deny)}
+  .fp-code.allow{color:#1f5c40}
+  .fp-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 16px;border-top:1px solid var(--line);padding-top:9px}
+  .fp-k{color:var(--muted);font:9px var(--mono);display:block}
+  .fp-v{font:11px var(--mono);color:var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  .fp-actions{display:flex;gap:6px;margin-top:12px}
+  .fp-actions button{border:1px solid var(--line);background:#fff;color:var(--body);font:10px var(--mono);padding:7px 10px;cursor:pointer}
+  .fp-actions button:hover{background:var(--paper)}
+  .fp-actions button.on[data-state="allow"]{background:var(--allow-bg);border-color:var(--allow-line);color:#1f5c40;font-weight:600}
+  .fp-actions button.on[data-state="deny"]{background:var(--deny-bg);border-color:var(--deny-line);color:var(--deny);font-weight:600}
+  .fp-actions button.on[data-state="ask"]{background:var(--ask-bg);border-color:var(--ask-line);color:var(--ask);font-weight:600}
+  .fp-note{color:var(--muted);font-size:10px;line-height:1.5;margin:9px 0 0}
+  .fp-scope{color:var(--muted);font:9px var(--mono);margin-top:8px}
+  .fp-scope label{display:flex;align-items:center;gap:5px;cursor:pointer}
+  .fp-scope input{accent-color:var(--ink)}
+  .fp-draft{margin-left:auto;color:var(--muted);font:9px var(--mono)}
+
+  .tokens{border:1px solid var(--line);background:#fff;margin-top:16px;padding:12px 14px}
+  .tokens-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .tokens-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+  .token-stat{border-top:1px solid var(--line);padding-top:7px}
+  .token-stat span{display:block;color:var(--muted);font:9px var(--mono);margin-bottom:4px}
+  .token-stat strong{font:13px var(--mono);font-weight:500;color:var(--body)}
+  .tokens-line{display:flex;gap:8px 18px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:9px;padding-top:8px;color:var(--muted);font:9px var(--mono)}
+  .tokens-line b{color:var(--body);font-weight:500}
+  .tokens-note{color:var(--muted);font-size:10px;line-height:1.5;margin:7px 0 0}
+
+  .panel{border-top:1px solid var(--line);margin-top:22px;padding-top:12px}
+  .panel-title{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:9px}
+  .paths{display:grid;grid-template-columns:1fr 1fr;gap:16px;min-width:0}
+  .path-group{border:1px solid var(--line);background:#fff;padding:9px 10px;min-width:0}
+  .path-head{display:flex;justify-content:space-between;color:var(--muted);font:9px var(--mono);margin-bottom:7px}
+  .path-row{display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px solid var(--line);padding:5px 0;font:10px var(--mono);min-width:0}
+  .path-row .path-remove{border:1px solid var(--line);background:#fff;color:var(--muted);font:9px var(--mono);padding:2px 5px;cursor:pointer}
+  .path-row .path-remove:hover{color:var(--deny);border-color:var(--deny-line)}
+  .path-add{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:7px}
+  .path-add input{flex:1;min-width:0;border:1px solid var(--line);background:#fff;padding:5px 6px;font:10px var(--mono)}
+  .path-add select{border:1px solid var(--line);background:#fff;padding:4px;font:10px var(--mono)}
+  .path-actions{display:flex;gap:8px;align-items:center;margin-top:9px}
+  .path-actions .button{font-size:11px;padding:5px 9px}
+  .path{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .tag{border:1px solid var(--line);color:var(--muted);padding:1px 4px;font:8px var(--mono);white-space:nowrap}
+  .tag.deny{border-color:var(--deny-line);color:var(--deny);background:var(--deny-bg)}
+  .tag.allow{border-color:var(--allow-line);color:#1f5c40;background:var(--allow-bg)}
+  .legend{margin-top:8px;color:var(--muted);font:9px var(--mono)}
+
+  .calls-drawer{border:1px solid var(--ink);background:#fff;padding:12px;margin-top:16px}
+  .calls-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+  .calls-head h2{margin:0}
+  .calls-filter{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px}
+  .calls-filter input{flex:1;min-width:140px;border:1px solid var(--line);background:var(--paper);padding:5px 6px;font:10px var(--mono)}
+  .calls-filter select{border:1px solid var(--line);background:var(--paper);padding:4px;font:10px var(--mono)}
+  .calls-filter .search-count{margin-left:auto}
+  .calls-lifetime{display:flex;gap:5px 14px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0;margin-bottom:6px;color:var(--muted);font:9px var(--mono)}
+  .calls-lifetime b{color:var(--body);font-weight:500}
+  .calls-drawer .table-wrap{max-height:360px;overflow:auto}
+  .calls-table{width:100%;border-collapse:collapse;font:10px var(--mono)}
+  .calls-table th{padding:5px 6px;border-bottom:1px solid var(--line);color:var(--muted);font:9px var(--mono);text-align:left;font-weight:500;white-space:nowrap}
+  .calls-table td{padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:250px;overflow:hidden;text-overflow:ellipsis}
+  .calls-table tbody tr{cursor:pointer}
+  .calls-table tbody tr:hover td{background:#f7f8fa}
+  .calls-table .deny{color:var(--deny)}.calls-table .allow{color:#1f5c40}
+  .calls-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;color:var(--muted);font:9px var(--mono)}
+  .calls-foot button{border:1px solid var(--line);background:#fff;color:var(--body);font:9px var(--mono);padding:4px 6px;cursor:pointer}
+  .calls-foot button:disabled{opacity:.35;cursor:default}
+
+  @media(max-width:1000px){
+    .shell{grid-template-columns:1fr}
+    .rail{display:none}
+    .page{padding:20px 16px 36px}
+    .topbar{padding:0 16px}
+    .daybar{grid-template-columns:1fr;gap:12px}
+    .week{justify-content:flex-start}
+    .tokens-grid{grid-template-columns:1fr 1fr}
+    .paths{grid-template-columns:1fr}
+    .agent-state{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:560px){
+    .topbar{height:auto;padding:10px 14px;align-items:flex-start;gap:8px;flex-wrap:wrap}
+    .page{padding:16px 12px 30px}
+    .flow-head{flex-direction:column}
+    .flow-tools{justify-content:flex-start}
+    .flowfilters input{flex-basis:100%}
+    .flowfilters .search-count{margin-left:0}
+    .flow-track{width:2400px;height:230px}
+    .flow-hour{font-size:7px}
+    .fp{width:min(340px,calc(100vw - 24px))}
+    .calls-filter select,.calls-filter input{flex:1 1 110px}
+    .agent-setup{padding:12px 16px 14px}
+    .agent-state{grid-template-columns:1fr}
+    .agent-control{gap:6px}
+    .agent-modes{width:100%}
+    .agent-modes button{flex:1}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <a class="wordmark" href="#">Bounds</a>
+    <div class="workspace">
+      <div class="rail-label">Workspace</div>
+      <div class="workspace-name"><span class="avatar" id="workspace-avatar">L</span><span id="workspace-name">local</span></div>
+      <div class="workspace-status" id="workspace-status">local only</div>
+      <button class="small-button" type="button" id="workspace-open">Connect workspace</button>
+    </div>
+    <div class="rail-label">Work</div>
+    <a class="nav active" href="#">Observed flow</a>
+    <a class="nav muted" href="#tokens">Impact</a>
+    <a class="nav muted" href="#paths">Paths</a>
+    <div class="bottom"><span>ledger</span><span id="ledger-total">0</span></div>
+  </aside>
+  <main class="main">
+    <div class="agentbar" id="agentbar">
+      <div class="agent-main"><span class="agent-dot"></span><div><span class="agent-title" id="agent-title">Checking agent</span><span class="agent-sub" id="agent-sub">Reading local status</span></div></div>
+      <div class="agent-actions"><button class="small-button" type="button" id="agent-action">Connect agent</button></div>
+    </div>
+    <div class="agent-setup" id="agent-setup" hidden>
+      <div class="agent-setup-head">
+        <div><h2 id="agent-setup-title">Agent control</h2><p id="agent-setup-copy">Choose how much Bounds may block, then wire the local hook.</p></div>
+        <button class="small-button" type="button" id="agent-setup-close">Close</button>
+      </div>
+      <div class="agent-state" id="agent-state"></div>
+      <div class="agent-control">
+        <span class="hint">Permission</span>
+        <div class="agent-modes" id="agent-modes" role="group" aria-label="Agent permission mode">
+          <button type="button" data-agent-mode="observe">Observe</button>
+          <button type="button" data-agent-mode="enforce">Enforce</button>
+          <button type="button" data-agent-mode="off">Off</button>
+        </div>
+        <button class="small-button" type="button" id="agent-connect-now">Connect now</button>
+        <button class="small-button" type="button" id="agent-manage-paths">Edit path permissions</button>
+        <span class="hint" id="agent-setup-status"></span>
+      </div>
+      <p class="agent-mode-note" id="agent-mode-note">Observe records every call without blocking. Enforce refuses calls outside the policy.</p>
+      <details class="agent-setup-details">
+        <summary>Agent setup commands</summary>
+        <p>An agent can run this itself. It initializes the ledger, writes the mode, wires the detected harness and writes AGENTS.md.</p>
+        <pre>npx attesso connect --write --mode observe</pre>
+        <p>Inspect the machine-readable result without a dashboard:</p>
+        <pre>npx attesso status --json</pre>
+        <p>For a custom harness, send one proposed tool call as JSON on stdin and read the verdict on stdout:</p>
+        <pre>npx attesso hook --observe</pre>
+        <p>Use <code>npx attesso mode enforce</code> when the observe pass looks right.</p>
+      </details>
+    </div>
+    <div class="workspace-panel" id="workspace-panel" hidden>
+      <div class="agent-setup-head">
+        <div><h2>Hosted workspace</h2><p>Sync signed decisions to the hosted control plane. The local ledger stays authoritative; raw arguments and keys never leave this machine.</p></div>
+        <button class="small-button" type="button" id="workspace-close">Close</button>
+      </div>
+      <div class="workspace-form">
+        <label>API URL<input id="workspace-url" type="url" placeholder="https://api.attesso.com" autocomplete="off"></label>
+        <label>API key<input id="workspace-key" type="password" placeholder="att_live_..." autocomplete="off"></label>
+        <label>Workspace name<input id="workspace-label" type="text" placeholder="e.g. Attesso" maxlength="80" autocomplete="off"></label>
+      </div>
+      <div class="workspace-actions">
+        <button class="button primary" type="button" id="workspace-save">Save workspace</button>
+        <button class="small-button" type="button" id="workspace-sync" hidden>Sync now</button>
+        <button class="small-button danger" type="button" id="workspace-disconnect" hidden>Disconnect</button>
+        <span class="workspace-error" id="workspace-error"></span>
+        <span class="workspace-status" id="workspace-sync-status"></span>
+      </div>
+      <p class="hint">Sync is available on the paid live workspace. The free local tier keeps working without this connection.</p>
+    </div>
+    <div class="topbar">
+      <div class="crumbs"><span>Bounds</span><span>/</span><span class="current">local</span><span class="badge">ledger</span></div>
+      <div class="actions">
+        <button class="button" type="button" id="export-draft" title="Set a rule on a block first" disabled>Export draft</button>
+        <button class="button" type="button" id="all-calls">All calls</button>
+      </div>
+    </div>
+    <div class="page">
+      <div class="title-row">
+        <div><h1>Bounds</h1><div class="micro" id="page-sub">Every tool call, decided locally before it runs</div></div>
+        <div class="micro">Decision edits are drafts. Connection and Paths save to the local ledger.</div>
+      </div>
+
+      <section class="daybar">
+        <div class="daynav">
+          <button class="dayarrow" type="button" id="prev-day" aria-label="Previous day">&lt;</button>
+          <div class="daycurrent"><div class="daylabel" id="day-label"></div><div class="daystats" id="day-stats"></div></div>
+          <button class="dayarrow" type="button" id="next-day" aria-label="Next day">&gt;</button>
+        </div>
+        <div class="week" id="week"></div>
+        <div><div class="micro" id="day-source">local ledger</div><div class="micro" id="day-coverage">00:00 - 24:00</div></div>
+      </section>
+
+      <section class="flow-wrap" aria-label="Observed flow">
+        <div class="flow-head">
+          <div><div class="flow-title">Observed flow</div><div class="flow-sub" id="flow-sub">loading</div></div>
+          <div class="flow-tools">
+            <button class="small-button" type="button" id="zoom-out" aria-label="Zoom out">&minus;</button>
+            <span class="zoom-level" id="zoom-level">16x</span>
+            <button class="small-button" type="button" id="zoom-in" aria-label="Zoom in">+</button>
+            <button class="small-button" type="button" id="flow-prev" aria-label="Scroll flow left">&lt;</button>
+            <button class="small-button" type="button" id="flow-next" aria-label="Scroll flow right">&gt;</button>
+            <button class="small-button" type="button" id="flow-start">00:00</button>
+            <button class="small-button" type="button" id="flow-end">24:00</button>
+            <button class="small-button" type="button" id="flow-calls">All calls</button>
+          </div>
+        </div>
+        <div class="flowfilters">
+          <input id="flow-search" placeholder="tool, task, code, #seq" autocomplete="off" aria-label="Search calls">
+          <select id="flow-cap" aria-label="Capability">
+            <option value="">All capabilities</option>
+            <option value="read">Read</option>
+            <option value="write">Write</option>
+            <option value="execute">Execute</option>
+            <option value="send">Send</option>
+            <option value="spend">Spend</option>
+          </select>
+          <select id="flow-decision" aria-label="Decision">
+            <option value="">All decisions</option>
+            <option value="ALLOW">Allowed</option>
+            <option value="DENY">Blocked</option>
+          </select>
+          <span class="search-count" id="flow-count">0 calls</span>
+        </div>
+        <div class="flow-scroller" id="flow-scroller">
+          <div class="flow-track" id="flow-track">
+            <div class="flow-hours" id="flow-hours"></div>
+            <div class="flow-lanes" id="flow-lanes"></div>
+          </div>
+        </div>
+        <div class="fp" id="flow-popover" hidden></div>
+        <div class="flow-legend"><span><i class="swatch allow"></i>allowed</span><span><i class="swatch deny"></i>blocked</span><span><i class="swatch ask"></i>draft ask</span><span>click a block to inspect and set a rule draft</span><span>scroll horizontally through the day</span></div>
+      </section>
+
+      <section class="tokens" id="tokens">
+        <div class="tokens-head"><h2>Impact</h2><span class="hint">blocked calls; measured usage only</span></div>
+        <div class="tokens-grid">
+          <div class="token-stat"><span>Blocked calls</span><strong id="tok-blocked">0</strong></div>
+          <div class="token-stat"><span id="token-label">Measured task tokens</span><strong id="tok-saved">not measured</strong></div>
+          <div class="token-stat"><span>Blocked share</span><strong id="tok-share">0%</strong></div>
+          <div class="token-stat"><span>Token coverage</span><strong id="tok-coverage">0%</strong></div>
+        </div>
+        <div class="tokens-line"><span>Blocked tasks <b id="tok-tasks">0</b></span><span>Blocked tools <b id="tok-tools">0</b></span><span>Top code <b id="tok-rule">n/a</b></span><span>Calls measured <b id="tok-covered">0</b></span></div>
+        <p class="tokens-note" id="tok-note">No usage data for this day. Blocked call counts are still exact.</p>
+      </section>
+
+      <section class="panel" id="paths">
+        <div class="panel-title"><h2>Paths</h2><span class="hint">file tools only; shell is separate</span></div>
+        <div class="paths">
+          <div class="path-group"><div class="path-head"><span>Allowed roots</span><button class="small-button" type="button" id="root-add">Add root</button></div><div id="allowed-list"></div></div>
+          <div class="path-group"><div class="path-head"><span>Excluded everywhere</span><button class="small-button" type="button" id="exclusion-add">Add exclusion</button></div><div id="exclusion-list"></div></div>
+        </div>
+        <div class="path-add"><input id="root-input" placeholder="/absolute/root or ~/project" autocomplete="off"><select id="root-access"><option value="read,write">read + write</option><option value="read">read only</option></select><button class="small-button" type="button" id="root-commit">Add</button></div>
+        <div class="path-add"><input id="exclusion-input" placeholder="**/.env or **/.ssh/**" autocomplete="off"><button class="small-button" type="button" id="exclusion-commit">Add exclusion</button></div>
+        <div class="path-actions"><button class="button" type="button" id="paths-save">Save paths</button><span class="hint" id="paths-status">Loading paths</span></div>
+        <div class="legend">Deny wins. Unresolved paths are refused. Saving writes the local ledger; the next hook call reads the new file.</div>
+      </section>
+
+      <section class="calls-drawer" id="calls-drawer">
+        <div class="calls-head"><h2>All calls</h2><div class="actions"><button class="small-button" type="button" id="calls-csv">CSV</button></div></div>
+        <div class="calls-filter">
+          <select id="calls-day" aria-label="Day"><option value="*">Recent</option></select>
+          <input id="calls-search" placeholder="tool, task, code, #seq" autocomplete="off">
+          <select id="calls-tool" aria-label="Tool"><option value="">All tools</option></select>
+          <select id="calls-capability" aria-label="Capability"><option value="">All capabilities</option></select>
+          <select id="calls-decision" aria-label="Decision"><option value="">All decisions</option><option value="ALLOW">Allowed</option><option value="DENY">Blocked</option></select>
+          <select id="calls-hour" aria-label="Hour"><option value="">All hours</option></select>
+          <span class="search-count" id="calls-count">0 calls</span>
+        </div>
+        <div class="calls-lifetime" id="calls-lifetime"></div>
+        <div class="table-wrap"><table class="calls-table"><thead><tr><th>Day</th><th>Time</th><th>Tool</th><th>Capability</th><th>Decision</th><th>Code</th><th>Task</th></tr></thead><tbody id="calls-body"></tbody></table></div>
+        <div class="calls-foot"><span id="calls-page"></span><span><button type="button" id="calls-prev">Previous</button> <button type="button" id="calls-next">Next</button></span></div>
+      </section>
+    </div>
+  </main>
+</div>
+<script>
+(async function () {
+  window.history.scrollRestoration = 'manual';
+  const el = (id) => document.getElementById(id);
+  // All ledger fields are escaped below; the data is local and not
+  // attacker-controlled, but escaping keeps the DOM contract explicit.
+  const esc = (value) => String(value ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+  const compact = (n) => {
+    const value = Number(n || 0);
+    if (value >= 1e9) return (value / 1e9).toFixed(1) + 'B';
+    if (value >= 1e6) return (value / 1e6).toFixed(1) + 'M';
+    if (value >= 1e3) return (value / 1e3).toFixed(1) + 'k';
+    return fmt(value);
+  };
+  let calls = {};
+  let tokenData = {};
+  let usageData = null;
+  let agentData = {};
+  let selectedAgentMode = null;
+  let pathState = null;
+  let workspaceState = { connected: false };
+  let v1 = false;
+  let dayStats = new Map();
+  let summaryCache = new Map();
+  let flowCache = new Map();
+  let currentCalls = 0;
+  let dayRequest = 0;
+  let callsRequest = 0;
+  let allRows = [];
+  let allCursor = '';
+  let allHasMore = false;
+  let allCursors = [];
+  let allKey = '';
+  const TOKEN = document.querySelector('meta[name="bounds-token"]')?.content ?? '';
+  const AUTH = TOKEN && TOKEN !== '__BOUNDS_TOKEN__' ? { 'x-bounds-token': TOKEN } : {};
+  const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  let controlApi = false;
+  let initialHead = 0;
+  let days = [];
+  try {
+    const response = await fetch('/api/status', { cache: 'no-store', headers: AUTH });
+    if (response.ok) {
+      agentData = await response.json();
+      if (agentData.paths) pathState = agentData.paths;
+      controlApi = true;
+    }
+  } catch {
+    controlApi = false;
+  }
+  try {
+    if (controlApi) {
+      const response = await fetch('/api/v1/days?limit=14&tz=' + encodeURIComponent(TZ), { cache: 'no-store', headers: AUTH });
+      if (!response.ok) throw new Error('days ' + response.status);
+      const payload = await response.json();
+      v1 = true;
+      for (const item of payload.days || []) {
+        days.push(item.day);
+        dayStats.set(item.day, item);
+        calls[item.day] = [];
+      }
+      const current = days[days.length - 1];
+      if (current) {
+        const summaryResponse = await fetch('/api/v1/summary?day=' + encodeURIComponent(current) + '&tz=' + encodeURIComponent(TZ), { cache: 'no-store', headers: AUTH });
+        if (summaryResponse.ok) {
+          const summaryValue = await summaryResponse.json();
+          summaryCache.set(current, summaryValue);
+          initialHead = Number(summaryValue.head || 0);
+        }
+      }
+    } else {
+      calls = await fetch('calls.json').then((response) => { if (!response.ok) throw new Error('calls.json ' + response.status); return response.json(); });
+      tokenData = await fetch('tokens.json').then((response) => (response.ok ? response.json() : {})).catch(() => ({}));
+      agentData = await fetch('agent.json').then((response) => (response.ok ? response.json() : {})).catch(() => ({}));
+    }
+  } catch (error) {
+    el('flow-sub').textContent = 'Could not load ledger: ' + error.message;
+    return;
+  }
+  if (!v1) days = Object.keys(calls).sort();
+  else days.sort();
+  if (!days.length) {
+    const today = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+    const placeholder = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+    calls[placeholder] = [];
+    days = [placeholder];
+  }
+  const CAPS = ['read', 'write', 'execute', 'send', 'spend'];
+  const BASE_WIDTH = 2880;
+  const GUTTER = 66;
+  const ZOOM_LEVELS = [1, 2, 4, 8, 16];
+  let zoom = 16;
+  const PAGE = 50;
+  const deepLink = new URLSearchParams(window.location.search);
+  const requestedDay = deepLink.get('day') || '';
+  const requestedTask = (deepLink.get('task') || '').trim();
+  const requestedSeq = Number(deepLink.get('seq'));
+  let selectedDay = days.includes(requestedDay) ? requestedDay : days[days.length - 1];
+  let callsDay = selectedDay;
+  let callsPage = 0;
+  let callsHour = '';
+  let selectedSeq = null;
+  let selectedMarker = null;
+  let drafts = new Map();
+  let bySeq = new Map();
+  let bucketRows = new Map();
+  let markerBySeq = new Map();
+  let currentRows = [];
+
+  function dayDate(day) {
+    return new Date(day + 'T12:00:00');
+  }
+  function dayLabel(day) {
+    return dayDate(day).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+  function statusFor(row) {
+    return row[4] === 'DENY' ? 'deny' : 'allow';
+  }
+  function minuteOf(time) {
+    const parts = String(time).split(':');
+    return Number(parts[0]) * 60 + Number(parts[1]);
+  }
+  function bucketTime(time) {
+    const minutes = minuteOf(time);
+    const start = Math.floor(minutes / 5) * 5;
+    return String(Math.floor(start / 60)).padStart(2, '0') + ':' + String(start % 60).padStart(2, '0');
+  }
+  function summarize(day) {
+    if (v1) {
+      const stats = summaryCache.get(day) || dayStats.get(day) || { calls: 0, blocked: 0 };
+      return { rows: calls[day] || [], calls: Number(stats.calls || 0), blocked: Number(stats.blocked || 0), allowed: Number(stats.calls || 0) - Number(stats.blocked || 0), caps: {} };
+    }
+    const rows = calls[day] || [];
+    let blocked = 0;
+    let allowed = 0;
+    const caps = {};
+    for (const row of rows) {
+      if (!caps[row[3]]) caps[row[3]] = 0;
+      caps[row[3]] += 1;
+      if (row[4] === 'DENY') blocked += 1; else allowed += 1;
+    }
+    return { rows, calls: rows.length, blocked, allowed, caps };
+  }
+  function tokenImpact(day) {
+    if (v1) {
+      const stats = summarize(day);
+      const buckets = flowCache.get(day)?.buckets || [];
+      const tools = new Set();
+      const tasks = new Set();
+      const rules = new Map();
+      for (const bucket of buckets) {
+        if (bucket.blocked > 0) {
+          for (const tool of bucket.tools || []) tools.add(tool);
+          for (const task of bucket.tasks || []) tasks.add(task);
+          for (const code of bucket.codes || []) rules.set(code, (rules.get(code) || 0) + 1);
+        }
+      }
+      return {
+        calls: stats.calls,
+        blocked: stats.blocked,
+        tasks: tasks.size,
+        tools: tools.size,
+        topRule: [...rules.entries()].sort((a, b) => b[1] - a[1])[0] || null,
+        usageCalls: 0,
+        usageBlocked: 0,
+        estimated: 0,
+        coverage: 0,
+      };
+    }
+    const rows = calls[day] || [];
+    const tasks = new Map();
+    const rules = new Map();
+    const blockedTools = new Set();
+    for (const row of rows) {
+      const task = tasks.get(row[6]) || { calls: 0, blocked: 0 };
+      task.calls += 1;
+      if (row[4] === 'DENY') task.blocked += 1;
+      tasks.set(row[6], task);
+      if (row[4] === 'DENY') {
+        blockedTools.add(row[2]);
+        rules.set(row[5] || 'policy', (rules.get(row[5] || 'policy') || 0) + 1);
+      }
+    }
+    let usageCalls = 0;
+    let usageBlocked = 0;
+    let measuredTokens = 0;
+    for (const [task, counts] of tasks) {
+      const usage = tokenData[task];
+      if (!usage) continue;
+      usageCalls += counts.calls;
+      usageBlocked += counts.blocked;
+      measuredTokens += (usage['in'] || 0) + (usage.out || 0);
+    }
+    const blocked = rows.filter((row) => row[4] === 'DENY').length;
+    const average = usageCalls ? measuredTokens / usageCalls : 0;
+    const estimated = average * blocked;
+    const topRule = [...rules.entries()].sort((a, b) => b[1] - a[1])[0] || null;
+    return {
+      calls: rows.length,
+      blocked,
+      tasks: [...tasks.values()].filter((task) => task.blocked > 0).length,
+      tools: blockedTools.size,
+      topRule,
+      usageCalls,
+      usageBlocked,
+      estimated,
+      coverage: rows.length ? usageCalls / rows.length : 0,
+    };
+  }
+
+  function ingestLive(payload) {
+    if (!payload || !payload.day || !payload.row) return;
+    const day = payload.day;
+    if (v1) {
+      const stats = dayStats.get(day) || { day, calls: 0, blocked: 0 };
+      stats.calls += 1;
+      if (payload.row[4] === 'DENY') stats.blocked += 1;
+      dayStats.set(day, stats);
+      if (!days.includes(day)) { days.push(day); days.sort(); }
+      initialHead = Math.max(initialHead, Number(payload.seq || 0));
+      summaryCache.delete(day);
+      flowCache.delete(day);
+      if (day === selectedDay) renderDay(day); else renderDayStrip();
+      return;
+    }
+    if (!calls[day]) {
+      calls[day] = [];
+      days.push(day);
+      days.sort();
+      const option = document.createElement('option');
+      option.value = day;
+      option.textContent = dayDate(day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      el('calls-day').append(option);
+    }
+    if (calls[day].some((row) => String(row[0]) === String(payload.row[0]))) return;
+    calls[day].push(payload.row);
+    initialHead = Math.max(initialHead, Number(payload.seq || 0));
+    if (day === selectedDay && !selectedSeq) {
+      renderDay(day);
+    } else {
+      renderLifetime();
+    }
+  }
+
+  async function startLive() {
+    if (!controlApi) return;
+    try {
+      const response = await fetch('/api/events?after=' + encodeURIComponent(initialHead), {
+        headers: AUTH,
+        cache: 'no-store'
+      });
+      if (!response.ok || !response.body) return;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundary;
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const data = block.split('\n').find((line) => line.startsWith('data: '));
+          if (!data) continue;
+          try { ingestLive(JSON.parse(data.slice(6))); } catch { /* a malformed event is ignored; the ledger is authoritative */ }
+        }
+      }
+    } catch {
+      // The server can restart; retry with the last sequence we saw.
+    }
+    if (controlApi) setTimeout(startLive, 2000);
+  }
+
+  function renderAgentStatus() {
+    const connected = Boolean(agentData.connected);
+    const bar = el('agentbar');
+    bar.classList.toggle('connected', connected);
+    el('agent-title').textContent = connected ? 'Agent connected' : 'No agent connected';
+    if (connected) {
+      const seq = agentData.last_seq ? ' - last decision #' + agentData.last_seq : '';
+      el('agent-sub').textContent = 'Hook active' + seq;
+      el('agent-action').textContent = 'Manage agent';
+    } else {
+      const wired = Array.isArray(agentData.wired) ? agentData.wired.length : 0;
+      const recorded = days.reduce((total, day) => total + summarize(day).calls, 0);
+      el('agent-sub').textContent = wired
+        ? 'Hook is ' + (agentData.mode || 'not configured') + ' - connect any agent to start observing'
+        : recorded > 0
+          ? fmt(recorded) + ' recorded calls; no harness wired'
+          : 'No harness wired - connect an agent to start observing';
+      el('agent-action').textContent = 'Connect agent';
+    }
+    renderAgentPanel();
+  }
+
+  function renderAgentPanel() {
+    const rawMode = selectedAgentMode || agentData.mode || 'observe';
+    const mode = rawMode.charAt(0).toUpperCase() + rawMode.slice(1);
+    const modeValue = rawMode.toLowerCase();
+    const connected = Boolean(agentData.connected);
+    const wired = Array.isArray(agentData.wired) && agentData.wired.length ? agentData.wired.join(', ') : 'none';
+    const ledger = agentData.ledger || 'not initialized';
+    const status = connected ? 'Connected' : (agentData.mode === 'off' ? 'Off' : 'Not connected');
+    el('agent-setup-title').textContent = connected ? 'Agent control' : 'Connect an agent';
+    el('agent-setup-copy').textContent = connected
+      ? 'Choose how much Bounds may block. Path rules decide which files file tools can touch.'
+      : 'Wire a local hook first, then choose how much Bounds may block.';
+    const state = el('agent-state');
+    state.replaceChildren();
+    for (const [label, value, title] of [
+      ['Status', status, ''],
+      ['Mode', mode, ''],
+      ['Wired', wired, wired],
+      ['Ledger', ledger, ledger],
+    ]) {
+      const item = document.createElement('div');
+      item.className = 'agent-kv';
+      const key = document.createElement('span');
+      key.textContent = label;
+      const val = document.createElement('b');
+      val.textContent = value;
+      if (title) val.title = title;
+      item.append(key, val);
+      state.append(item);
+    }
+    for (const button of el('agent-modes').querySelectorAll('[data-agent-mode]')) {
+      button.classList.toggle('on', button.dataset.agentMode === modeValue);
+      button.setAttribute('aria-pressed', String(button.dataset.agentMode === modeValue));
+      button.disabled = !controlApi;
+    }
+    el('agent-mode-note').textContent = modeValue === 'enforce'
+      ? 'Enforce refuses calls outside the policy. Review observe output before turning this on.'
+      : modeValue === 'off'
+        ? 'Off stops the hook completely. Nothing is recorded or blocked.'
+        : 'Observe records every call without blocking. This is the safe default.';
+    el('agent-connect-now').textContent = connected ? 'Reconnect' : 'Connect now';
+  }
+
+  function renderPaths() {
+    const allowed = el('allowed-list');
+    const excluded = el('exclusion-list');
+    allowed.replaceChildren();
+    excluded.replaceChildren();
+    if (!pathState) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'Start the local control server to edit paths.';
+      allowed.append(empty);
+      excluded.append(empty.cloneNode(true));
+      el('paths-status').textContent = 'Local control server not connected.';
+      return;
+    }
+    if (el('paths-status').textContent === 'Loading paths') el('paths-status').textContent = 'Loaded from the local ledger.';
+    for (const [index, entry] of pathState.allowed_roots.entries()) {
+      const row = document.createElement('div');
+      row.className = 'path-row';
+      const path = document.createElement('span');
+      path.className = 'path';
+      path.textContent = entry.path;
+      const access = document.createElement('span');
+      access.className = 'tag';
+      access.textContent = entry.access.includes('write') ? 'read + write' : 'read';
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'path-remove';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', () => { pathState.allowed_roots.splice(index, 1); renderPaths(); });
+      row.append(path, access, remove);
+      allowed.append(row);
+    }
+    for (const [index, exclusion] of pathState.exclusions.entries()) {
+      const row = document.createElement('div');
+      row.className = 'path-row';
+      const path = document.createElement('span');
+      path.className = 'path';
+      path.textContent = exclusion;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'path-remove';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', () => { pathState.exclusions.splice(index, 1); renderPaths(); });
+      row.append(path, remove);
+      excluded.append(row);
+    }
+    if (!pathState.allowed_roots.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'No allowed roots. Every path-scoped tool call is refused.';
+      allowed.append(empty);
+    }
+    if (!pathState.exclusions.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'No exclusions.';
+      excluded.append(empty);
+    }
+  }
+
+  function addRoot() {
+    const value = el('root-input').value.trim();
+    if (!value || !pathState) return;
+    const access = el('root-access').value.split(',');
+    pathState.allowed_roots.push({ path: value, access });
+    el('root-input').value = '';
+    renderPaths();
+  }
+
+  function addExclusion() {
+    const value = el('exclusion-input').value.trim();
+    if (!value || !pathState) return;
+    pathState.exclusions.push(value);
+    el('exclusion-input').value = '';
+    renderPaths();
+  }
+
+  async function savePaths() {
+    const status = el('paths-status');
+    status.textContent = 'Saving...';
+    if (!pathState || !controlApi) {
+      status.textContent = 'Local control server is not running; download a draft instead.';
+      return;
+    }
+    try {
+      const response = await fetch('/api/paths', {
+        method: 'POST',
+        headers: { ...AUTH, 'content-type': 'application/json' },
+        body: JSON.stringify(pathState)
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'save failed');
+      pathState = body.paths;
+      renderPaths();
+      status.textContent = 'Saved to the local ledger. The next hook call reads this file.';
+    } catch (error) {
+      status.textContent = 'Could not save: ' + error.message;
+    }
+  }
+
+  async function refreshStatus() {
+    if (!controlApi) return;
+    try {
+      const response = await fetch('/api/status', { cache: 'no-store', headers: AUTH });
+      if (!response.ok) return;
+      const status = await response.json();
+      agentData = status;
+      if (status.paths) pathState = status.paths;
+      renderAgentStatus();
+      renderPaths();
+    } catch {
+      // The local server can be restarted without breaking the page.
+    }
+  }
+
+  async function setAgentMode(mode) {
+    selectedAgentMode = mode;
+    renderAgentPanel();
+    const status = el('agent-setup-status');
+    if (!controlApi) {
+      status.textContent = 'Start the local control server to change modes.';
+      return;
+    }
+    if (!agentData.connected) {
+      status.textContent = 'Press Connect now to apply ' + mode + '.';
+      return;
+    }
+    status.textContent = 'Applying ' + mode + '...';
+    try {
+      const response = await fetch('/api/mode', {
+        method: 'POST',
+        headers: { ...AUTH, 'content-type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'mode change failed');
+      agentData = body.status || agentData;
+      selectedAgentMode = null;
+      renderAgentStatus();
+      status.textContent = 'Mode updated to ' + mode + '.';
+    } catch (error) {
+      status.textContent = 'Could not change mode: ' + error.message;
+    }
+  }
+
+  async function connectNow() {
+    const status = el('agent-setup-status');
+    const mode = selectedAgentMode || (agentData.mode === 'off' ? 'observe' : agentData.mode) || 'observe';
+    status.textContent = 'Connecting...';
+    if (!controlApi) {
+      status.textContent = 'Start the local control server to connect.';
+      return;
+    }
+    try {
+      const response = await fetch('/api/connect', {
+        method: 'POST',
+        headers: { ...AUTH, 'content-type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'connect failed');
+      agentData = body.status || agentData;
+      selectedAgentMode = null;
+      agentData = { ...agentData, paths: body.status?.paths || agentData.paths };
+      controlApi = true;
+      renderAgentStatus();
+      if (body.status?.paths) pathState = body.status.paths;
+      renderPaths();
+      status.textContent = agentData.connected
+        ? 'Agent connected.'
+        : mode === 'off'
+          ? 'Bounds is off; choose Observe and connect again.'
+          : 'No agent harness detected; copy the setup command below.';
+    } catch (error) {
+      status.textContent = 'Connect failed: ' + error.message;
+    }
+  }
+
+  function renderDayStrip() {
+    const max = Math.max(...days.map((day) => summarize(day).calls), 1);
+    el('week').replaceChildren();
+    for (const day of days) {
+      const summary = summarize(day);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'day' + (day === selectedDay ? ' active' : '');
+      button.title = dayLabel(day) + ': ' + fmt(summary.calls) + ' calls';
+      button.innerHTML = '<span class="bar"><i style="height:' + Math.max(3, Math.round((summary.calls / max) * 100)) + '%"></i><b style="height:' + Math.round((summary.blocked / Math.max(summary.calls, 1)) * 100) + '%"></b></span><span class="daydate">' + esc(dayDate(day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })) + '</span><span class="daymeta">' + compact(summary.calls) + '</span>';
+      button.addEventListener('click', () => renderDay(day));
+      el('week').append(button);
+    }
+  }
+
+  function renderDayHeader(day) {
+    const summary = summarize(day);
+    const share = summary.calls ? Math.round((summary.blocked / summary.calls) * 100) : 0;
+    el('day-label').textContent = dayLabel(day);
+    el('day-stats').innerHTML = '<strong>' + fmt(summary.calls) + '</strong> calls<span class="sep">/</span><strong>' + fmt(summary.blocked) + '</strong> blocked<span class="rate">' + share + '%</span>';
+    el('day-source').textContent = 'local ledger';
+    el('day-coverage').textContent = summary.calls ? '00:00 - 24:00' : 'empty day';
+    const index = days.indexOf(day);
+    el('prev-day').disabled = index <= 0;
+    el('next-day').disabled = index >= days.length - 1;
+  }
+
+  function flowWidth() {
+    return BASE_WIDTH * zoom;
+  }
+
+  function renderFlow(day, preserveCenter = null) {
+    if (v1) return renderV1Flow(day, preserveCenter);
+    const summary = summarize(day);
+    const empty = summary.calls === 0;
+    const width = flowWidth();
+    const inner = width - GUTTER;
+    el('flow-track').style.width = width + 'px';
+    el('zoom-level').textContent = zoom + 'x';
+    currentRows = summary.rows;
+    bySeq = new Map(currentRows.map((row) => [String(row[0]), row]));
+    el('flow-sub').textContent = fmt(summary.calls) + ' calls / ' + fmt(summary.blocked) + ' blocked / ' + esc(day);
+    el('flow-count').textContent = fmt(summary.calls) + ' calls';
+    const hours = el('flow-hours');
+    hours.replaceChildren();
+    if (!empty) {
+      for (let hour = 0; hour <= 24; hour += 1) {
+        const line = document.createElement('div');
+        line.className = 'flow-hour' + (hour % 3 === 0 ? ' major' : '');
+        line.style.left = (GUTTER + (hour / 24) * inner) + 'px';
+        const labelEvery = zoom >= 2 ? 1 : 3;
+        if (hour % labelEvery === 0) line.textContent = String(hour).padStart(2, '0') + ':00';
+        hours.append(line);
+      }
+    }
+    const lanes = el('flow-lanes');
+    lanes.replaceChildren();
+    const fragments = new Map(CAPS.map((cap) => [cap, document.createDocumentFragment()]));
+    bucketRows = new Map();
+    markerBySeq = new Map();
+    const groups = new Map();
+    for (const row of summary.rows) {
+      const cap = CAPS.includes(row[3]) ? row[3] : 'read';
+      const key = cap + '|' + bucketTime(row[1]);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    }
+    const buckets = new Map();
+    for (const [key, rows] of groups) {
+      bucketRows.set(key, rows);
+      const cap = key.split('|')[0];
+      const index = buckets.get(cap) || 0;
+      buckets.set(cap, index + 1);
+      const denied = rows.some((row) => row[4] === 'DENY');
+      const allowed = rows.some((row) => row[4] === 'ALLOW');
+      const tools = [...new Set(rows.map((row) => row[2]))];
+      const time = key.split('|')[1];
+      const detail = zoom >= 8;
+      const marker = document.createElement('button');
+      marker.type = 'button';
+      marker.className = 'fm ' + (denied && allowed ? 'mixed' : denied ? 'deny' : 'allow') + (detail ? ' detail' : '') + (zoom >= 16 ? ' wide' : '');
+      marker.style.left = ((minuteOf(time) / 1440) * 100) + '%';
+      marker.style.top = detail ? '4px' : '7px';
+      marker.style.width = (detail
+        ? (zoom >= 16 ? Math.max(92, Math.min(140, 92 + Math.log2(rows.length) * 10)) : Math.max(44, Math.min(70, 44 + Math.log2(rows.length) * 6)))
+        : zoom >= 4 ? Math.max(7, Math.min(20, 7 + Math.log2(rows.length) * 2.5)) : Math.max(4, Math.min(10, 4 + Math.log2(rows.length) * 1.5))) + 'px';
+      marker.dataset.key = key;
+      marker.dataset.count = String(rows.length);
+      marker.dataset.tool = tools.join(',');
+      marker.dataset.capability = cap;
+      marker.dataset.allow = allowed ? '1' : '0';
+      marker.dataset.deny = denied ? '1' : '0';
+      marker.dataset.search = rows.map((row) => [row[0], row[1], row[2], row[3], row[4], row[5], row[6]].join(' ')).join(' ').toLowerCase();
+      marker.title = time + ' / ' + rows.length + ' calls / ' + tools.join(', ');
+      marker.setAttribute('aria-label', marker.title);
+      if (detail) {
+        const label = tools.length === 1 ? tools[0] : tools[0] + ' +' + (tools.length - 1);
+        marker.innerHTML = '<span class="fm-time">' + esc(time) + '</span><span class="fm-label">' + esc(label) + '</span><span class="fm-count">' + rows.length + '</span>';
+      }
+      for (const row of rows) markerBySeq.set(String(row[0]), marker);
+      fragments.get(cap).append(marker);
+    }
+    if (!empty) {
+      for (const cap of CAPS) {
+        const lane = document.createElement('div');
+        lane.className = 'f-lane';
+        lane.dataset.capability = cap;
+        const label = document.createElement('div');
+        label.className = 'f-label';
+        label.textContent = cap.toUpperCase();
+        const track = document.createElement('div');
+        track.className = 'f-track';
+        track.append(fragments.get(cap));
+        lane.append(label, track);
+        lanes.append(lane);
+      }
+    }
+    const scroller = el('flow-scroller');
+    if (preserveCenter == null) {
+      const firstMinute = summary.rows.length ? Math.min(...summary.rows.map((row) => minuteOf(row[1]))) : 0;
+      const firstX = GUTTER + (firstMinute / 1440) * inner;
+      scroller.scrollLeft = Math.max(0, firstX - scroller.clientWidth / 2);
+    } else {
+      scroller.scrollLeft = Math.max(0, (preserveCenter / 1440) * width - scroller.clientWidth / 2);
+    }
+    closePopover();
+    applyFlowFilter();
+    renderTokens(day);
+    updateExportDraft();
+  }
+
+  function renderV1Flow(day, preserveCenter = null) {
+    const summary = summarize(day);
+    const empty = summary.calls === 0;
+    const buckets = flowCache.get(day)?.buckets || [];
+    const width = flowWidth();
+    const inner = width - GUTTER;
+    el('flow-track').style.width = width + 'px';
+    el('zoom-level').textContent = zoom + 'x';
+    currentCalls = summary.calls;
+    currentRows = [];
+    bySeq = new Map();
+    bucketRows = new Map();
+    markerBySeq = new Map();
+    el('flow-sub').textContent = fmt(summary.calls) + ' calls / ' + fmt(summary.blocked) + ' blocked / ' + esc(day);
+    el('flow-count').textContent = fmt(summary.calls) + ' calls';
+    const hours = el('flow-hours');
+    hours.replaceChildren();
+    if (!empty) {
+      for (let hour = 0; hour <= 24; hour += 1) {
+        const line = document.createElement('div');
+        line.className = 'flow-hour' + (hour % 3 === 0 ? ' major' : '');
+        line.style.left = (GUTTER + (hour / 24) * inner) + 'px';
+        const labelEvery = zoom >= 2 ? 1 : 3;
+        if (hour % labelEvery === 0) line.textContent = String(hour).padStart(2, '0') + ':00';
+        hours.append(line);
+      }
+    }
+    const lanes = el('flow-lanes');
+    lanes.replaceChildren();
+    const fragments = new Map(CAPS.map((cap) => [cap, document.createDocumentFragment()]));
+    for (const bucket of buckets) {
+      const cap = CAPS.includes(bucket.capability) ? bucket.capability : 'read';
+      const key = bucket.minute + '|' + cap;
+      const tools = bucket.tools || [];
+      const denied = bucket.blocked > 0;
+      const allowed = bucket.allowed > 0;
+      const time = String(Math.floor(bucket.minute / 60)).padStart(2, '0') + ':' + String(bucket.minute % 60).padStart(2, '0');
+      const detail = zoom >= 8;
+      const marker = document.createElement('button');
+      marker.type = 'button';
+      marker.className = 'fm ' + (denied && allowed ? 'mixed' : denied ? 'deny' : 'allow') + (detail ? ' detail' : '') + (zoom >= 16 ? ' wide' : '');
+      marker.style.left = ((bucket.minute / 1440) * 100) + '%';
+      marker.style.top = detail ? '4px' : '7px';
+      marker.style.width = (detail
+        ? (zoom >= 16 ? Math.max(92, Math.min(140, 92 + Math.log2(bucket.total) * 10)) : Math.max(44, Math.min(70, 44 + Math.log2(bucket.total) * 6)))
+        : zoom >= 4 ? Math.max(7, Math.min(20, 7 + Math.log2(bucket.total) * 2.5)) : Math.max(4, Math.min(10, 4 + Math.log2(bucket.total) * 1.5))) + 'px';
+      marker.dataset.key = key;
+      marker.dataset.minute = String(bucket.minute);
+      marker.dataset.capability = cap;
+      marker.dataset.count = String(bucket.total);
+      marker.dataset.allow = allowed ? '1' : '0';
+      marker.dataset.deny = denied ? '1' : '0';
+      marker.dataset.search = [time, cap, ...tools, ...(bucket.tasks || []), ...(bucket.codes || [])].join(' ').toLowerCase();
+      marker.title = time + ' / ' + bucket.total + ' calls / ' + tools.join(', ');
+      marker.setAttribute('aria-label', marker.title);
+      if (detail) {
+        const label = tools.length === 1 ? tools[0] : tools[0] + ' +' + Math.max(0, tools.length - 1);
+        marker.innerHTML = '<span class="fm-time">' + esc(time) + '</span><span class="fm-label">' + esc(label) + '</span><span class="fm-count">' + bucket.total + '</span>';
+      }
+      fragments.get(cap).append(marker);
+    }
+    if (!empty) {
+      for (const cap of CAPS) {
+        const lane = document.createElement('div');
+        lane.className = 'f-lane';
+        lane.dataset.capability = cap;
+        const label = document.createElement('div');
+        label.className = 'f-label';
+        label.textContent = cap.toUpperCase();
+        const track = document.createElement('div');
+        track.className = 'f-track';
+        track.append(fragments.get(cap));
+        lane.append(label, track);
+        lanes.append(lane);
+      }
+    }
+    const scroller = el('flow-scroller');
+    if (preserveCenter == null) {
+      const firstMinute = buckets.length ? Math.min(...buckets.map((bucket) => bucket.minute)) : 0;
+      scroller.scrollLeft = Math.max(0, (GUTTER + (firstMinute / 1440) * inner) - scroller.clientWidth / 2);
+    } else {
+      scroller.scrollLeft = Math.max(0, (preserveCenter / 1440) * width - scroller.clientWidth / 2);
+    }
+    closePopover();
+    applyFlowFilter();
+    renderTokens(day);
+    updateExportDraft();
+  }
+
+  function applyFlowFilter() {
+    const query = el('flow-search').value.trim().toLowerCase();
+    const capability = el('flow-cap').value;
+    const decision = el('flow-decision').value;
+    let visible = 0;
+    for (const marker of document.querySelectorAll('.fm')) {
+      const text = marker.dataset.search || '';
+      const show = (!capability || marker.dataset.capability === capability) &&
+        (!decision || (decision === 'DENY' ? marker.dataset.deny === '1' : marker.dataset.allow === '1')) &&
+        (!query || text.includes(query));
+      marker.hidden = !show;
+      if (show) visible += Number(marker.dataset.count || 0);
+    }
+    el('flow-count').textContent = fmt(visible) + ' / ' + fmt(v1 ? currentCalls : currentRows.length) + ' calls';
+    if (selectedMarker && selectedMarker.hidden) closePopover();
+  }
+
+  async function loadUsage(day) {
+    if (!controlApi) return;
+    usageData = null;
+    try {
+      const response = await fetch('/api/v1/usage?day=' + encodeURIComponent(day) + '&tz=' + encodeURIComponent(TZ), {
+        cache: 'no-store', headers: AUTH
+      });
+      if (!response.ok) return;
+      const next = await response.json();
+      if (selectedDay !== day) return;
+      if (selectedDay === day) {
+        usageData = next;
+        renderTokens(day);
+      }
+    } catch {
+      // The exact blocked count remains available without usage.
+    }
+  }
+
+  function renderTokens(day) {
+    const impact = tokenImpact(day);
+    const measured = controlApi && usageData && usageData.day === day ? usageData : null;
+    const share = impact.calls ? Math.round((impact.blocked / impact.calls) * 100) : 0;
+    el('tok-blocked').textContent = fmt(impact.blocked);
+    el('tok-saved').textContent = measured && measured.totals.measured_calls ? fmt(measured.totals.tokens) : 'not measured';
+    el('tok-share').textContent = share + '%';
+    el('tok-coverage').textContent = measured ? Math.round(measured.coverage * 100) + '%' : '0%';
+    el('tok-tasks').textContent = fmt(impact.tasks);
+    el('tok-tools').textContent = fmt(impact.tools);
+    el('tok-rule').textContent = impact.topRule ? impact.topRule[0] + ' ' + fmt(impact.topRule[1]) : 'n/a';
+    el('tok-covered').textContent = measured ? fmt(measured.totals.measured_calls) : '0';
+    el('tok-note').textContent = measured && measured.totals.measured_calls
+      ? 'Measured tokens come from the agent usage records for ' + fmt(measured.totals.measured_calls) + ' of ' + fmt(measured.totals.calls) + ' calls on this day. Blocked calls are exact; no per-call saving is inferred.'
+      : 'No measured session usage is available for this day. Blocked call counts are still exact.';
+    el('token-label').textContent = 'Measured task tokens';
+  }
+
+  function closePopover() {
+    if (selectedMarker) selectedMarker.classList.remove('selected');
+    selectedMarker = null;
+    selectedSeq = null;
+    const popover = el('flow-popover');
+    if (popover) {
+      popover.hidden = true;
+      popover.replaceChildren();
+    }
+  }
+
+  function positionPopover(marker, popover) {
+    const wrap = document.querySelector('.flow-wrap');
+    const wrapRect = wrap.getBoundingClientRect();
+    const markerRect = marker.getBoundingClientRect();
+    popover.hidden = false;
+    const width = popover.offsetWidth;
+    const height = popover.offsetHeight;
+    let left = markerRect.left - wrapRect.left - width / 2 + markerRect.width / 2;
+    left = Math.max(8, Math.min(wrapRect.width - width - 8, left));
+    let top = markerRect.top - wrapRect.top - height - 8;
+    if (top < 4) top = 4;
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
+  }
+
+  async function openDeepLink(seq) {
+    const params = new URLSearchParams({ day: selectedDay, tz: TZ, limit: '200', search: String(seq) });
+    const response = await fetch('/api/v1/calls?' + params.toString(), { cache: 'no-store', headers: AUTH });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || 'deep link ' + response.status);
+    const found = (body.rows || []).find((row) => Number(row[0]) === seq);
+    if (!found) return;
+    const row = found.slice();
+    row[7] = selectedDay;
+    bySeq.set(String(seq), row);
+    const minute = Math.floor(minuteOf(row[1]) / 5) * 5;
+    const marker = [...document.querySelectorAll('.fm')].find(
+      (candidate) => candidate.dataset.minute === String(minute) && candidate.dataset.capability === row[3],
+    );
+    if (!marker || marker.hidden) return;
+    marker.scrollIntoView({ block: 'nearest', inline: 'center' });
+    await openPopover(seq, marker);
+  }
+
+  function renderWorkspace() {
+    const connected = workspaceState?.connected === true;
+    const label = workspaceState?.workspace || (connected ? 'hosted' : 'local');
+    el('workspace-name').textContent = label;
+    el('workspace-avatar').textContent = connected ? String(label).slice(0, 1).toUpperCase() : 'L';
+    el('workspace-status').textContent = connected
+      ? 'hosted sync on'
+      : 'local only';
+    el('workspace-open').textContent = connected ? 'Manage workspace' : 'Connect workspace';
+    const disconnect = el('workspace-disconnect');
+    disconnect.hidden = !connected;
+    el('workspace-sync').hidden = !connected;
+    el('workspace-sync-status').textContent = '';
+  }
+
+  async function loadWorkspace() {
+    try {
+      const response = await fetch('/api/workspace', { cache: 'no-store', headers: AUTH });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'workspace status ' + response.status);
+      workspaceState = body;
+    } catch (error) {
+      workspaceState = { connected: false, error: error.message };
+    }
+    renderWorkspace();
+  }
+
+  function openWorkspacePanel() {
+    el('agent-setup').hidden = true;
+    el('workspace-panel').hidden = false;
+    el('workspace-error').textContent = '';
+    el('workspace-url').value = workspaceState.sync_url || 'https://api.attesso.com';
+    el('workspace-key').value = '';
+    el('workspace-label').value = workspaceState.workspace || '';
+    (workspaceState.connected ? el('workspace-label') : el('workspace-url')).focus();
+  }
+
+  async function saveWorkspace() {
+    const button = el('workspace-save');
+    const error = el('workspace-error');
+    error.textContent = '';
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { ...AUTH, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sync_url: el('workspace-url').value.trim(),
+          api_key: el('workspace-key').value.trim(),
+          workspace: el('workspace-label').value.trim(),
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'workspace ' + response.status);
+      workspaceState = body;
+      renderWorkspace();
+      el('workspace-panel').hidden = true;
+    } catch (failure) {
+      error.textContent = failure.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function disconnectWorkspace() {
+    const error = el('workspace-error');
+    error.textContent = '';
+    el('workspace-disconnect').disabled = true;
+    try {
+      const response = await fetch('/api/workspace', { method: 'DELETE', headers: AUTH });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'workspace ' + response.status);
+      workspaceState = body;
+      renderWorkspace();
+      el('workspace-panel').hidden = true;
+    } catch (failure) {
+      error.textContent = failure.message;
+    } finally {
+      el('workspace-disconnect').disabled = false;
+    }
+  }
+
+  async function syncWorkspace() {
+    const button = el('workspace-sync');
+    const status = el('workspace-sync-status');
+    status.textContent = 'Syncing...';
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/sync', { method: 'POST', headers: AUTH });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'sync ' + response.status);
+      status.textContent = `${body.accepted} accepted, ${body.skipped} already present, ${body.metered} metered`;
+    } catch (failure) {
+      status.textContent = failure.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function openBucket(marker) {
+    let rows = bucketRows.get(marker.dataset.key) || [];
+    if (v1 && !rows.length) {
+      try {
+        const params = new URLSearchParams({ day: selectedDay, tz: TZ, limit: '200' });
+        if (marker.dataset.minute !== undefined) params.set('minute', marker.dataset.minute);
+        if (marker.dataset.capability) params.set('capability', marker.dataset.capability);
+        const response = await fetch('/api/v1/calls?' + params.toString(), { cache: 'no-store', headers: AUTH });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'bucket ' + response.status);
+        rows = (body.rows || []).map((row) => {
+          const copy = row.slice();
+          copy[7] = selectedDay;
+          bySeq.set(String(copy[0]), copy);
+          markerBySeq.set(String(copy[0]), marker);
+          return copy;
+        });
+        bucketRows.set(marker.dataset.key, rows);
+      } catch (error) {
+        el('flow-sub').textContent = 'Could not load block: ' + error.message;
+        return;
+      }
+    }
+    if (!rows.length) return;
+    if (rows.length === 1) {
+      openPopover(rows[0][0], marker);
+      return;
+    }
+    closePopover();
+    selectedMarker = marker;
+    marker.classList.add('selected');
+    const denied = rows.filter((row) => row[4] === 'DENY').length;
+    const allowed = rows.length - denied;
+    const tools = [...new Set(rows.map((row) => row[2]))];
+    const blockStates = new Set(rows.map((row) => drafts.get(String(row[0])) || 'unset'));
+    const blockDraft = blockStates.size === 1 ? [...blockStates][0] : 'mixed';
+    const popover = el('flow-popover');
+    const list = rows.map((row, index) => '<button class="fp-row' + (index >= 6 ? ' fp-extra' : '') + '" type="button" data-seq="' + esc(row[0]) + '"' + (index >= 6 ? ' hidden' : '') + '><span>#' + esc(row[0]) + '</span><span>' + esc(row[2]) + '</span><span class="' + (row[4] === 'ALLOW' ? 'allow' : 'deny') + '">' + esc(row[4]) + '</span></button>').join('');
+    popover.innerHTML = '<div class="fp-head"><span>' + esc(rows[0][1]) + ' / ' + rows.length + ' calls</span><button class="fp-close" type="button" aria-label="Close">&times;</button></div>' +
+      '<div class="fp-title"><strong>' + esc(tools.length === 1 ? tools[0] : tools.slice(0, 3).join(', ')) + '</strong><span class="fp-code">' + denied + ' blocked / ' + allowed + ' allowed</span></div>' +
+      '<div class="fp-grid"><div><span class="fp-k">window</span><span class="fp-v">' + esc(rows[0][1]) + '</span></div><div><span class="fp-k">calls</span><span class="fp-v">' + rows.length + '</span></div><div><span class="fp-k">tools</span><span class="fp-v">' + esc(tools.join(', ')) + '</span></div><div><span class="fp-k">code</span><span class="fp-v">' + esc(rows[0][5] || 'n/a') + '</span></div></div>' +
+      '<div class="fp-actions fp-block-actions"><button type="button" data-block-state="allow">Allow all</button><button type="button" data-block-state="ask">Ask all</button><button type="button" data-block-state="deny">Deny all</button><span class="fp-draft" id="fp-block-draft">draft: ' + esc(blockDraft) + '</span></div>' +
+      '<div class="fp-list">' + list + '</div>' + (rows.length > 6 ? '<button class="fp-more" type="button" id="fp-more">' + (rows.length - 6) + ' more - click for more</button>' : '') +
+      '<p class="fp-note">Apply to the whole block, or pick a call for its details.</p>';
+    popover.querySelector('.fp-close').addEventListener('click', (event) => { event.stopPropagation(); closePopover(); });
+    for (const button of popover.querySelectorAll('.fp-row')) {
+      button.addEventListener('click', (event) => { event.stopPropagation(); openPopover(button.dataset.seq, marker); });
+    }
+    const more = popover.querySelector('#fp-more');
+    if (more) more.addEventListener('click', (event) => {
+      event.stopPropagation();
+      for (const row of popover.querySelectorAll('.fp-extra')) row.hidden = false;
+      popover.querySelector('.fp-list').classList.add('expanded');
+      more.remove();
+      positionPopover(marker, popover);
+    });
+    for (const button of popover.querySelectorAll('[data-block-state]')) {
+      button.classList.toggle('on', button.dataset.blockState === blockDraft);
+      button.addEventListener('click', (event) => { event.stopPropagation(); setBlockDraft(marker, button.dataset.blockState); });
+    }
+    positionPopover(marker, popover);
+  }
+
+  function openPopover(seq, marker = null) {
+    const row = bySeq.get(String(seq));
+    if (!row) return;
+    const groupMarker = marker || markerBySeq.get(String(seq));
+    closePopover();
+    selectedSeq = String(seq);
+    selectedMarker = groupMarker || null;
+    if (selectedMarker) selectedMarker.classList.add('selected');
+    if (selectedMarker) selectedMarker.scrollIntoView({ block: 'nearest', inline: 'center' });
+    const draft = drafts.get(String(seq)) || 'unset';
+    const blockRows = selectedMarker ? (bucketRows.get(selectedMarker.dataset.key) || [row]) : [row];
+    const popover = el('flow-popover');
+    popover.innerHTML = '<div class="fp-head"><span>#' + esc(row[0]) + ' / ' + esc(row[1]) + '</span><button class="fp-close" type="button" aria-label="Close">&times;</button></div>' +
+      '<div class="fp-title"><strong>' + esc(row[2]) + '</strong><span class="fp-code' + (row[4] === 'ALLOW' ? ' allow' : '') + '">' + esc(row[4]) + ' / ' + esc(row[5] || row[4]) + '</span></div>' +
+      '<div class="fp-grid">' +
+        '<div><span class="fp-k">capability</span><span class="fp-v">' + esc(row[3]) + '</span></div>' +
+        '<div><span class="fp-k">draft</span><span class="fp-v" id="fp-draft">' + esc(draft) + '</span></div>' +
+        '<div><span class="fp-k">task</span><span class="fp-v" title="' + esc(row[6]) + '">' + esc(String(row[6]).slice(0, 18)) + '</span></div>' +
+        '<div><span class="fp-k">code</span><span class="fp-v">' + esc(row[5] || 'n/a') + '</span></div>' +
+        '<div><span class="fp-k">block</span><span class="fp-v">' + blockRows.length + ' calls</span></div>' +
+        '<div><span class="fp-k">path</span><span class="fp-v">not recorded</span></div>' +
+      '</div>' +
+      '<div class="fp-actions"><button type="button" data-state="allow">Allow</button><button type="button" data-state="ask">Ask</button><button type="button" data-state="deny">Deny</button><span class="fp-draft">draft</span></div>' +
+      (blockRows.length > 1 ? '<div class="fp-scope"><label><input type="checkbox" id="fp-all"> apply to all ' + blockRows.length + ' calls in this block</label></div>' : '') +
+      '<p class="fp-note">Draft only. The policy file stays local; export produces the diff.</p>';
+    const buttons = popover.querySelectorAll('.fp-actions button');
+    for (const button of buttons) {
+      button.classList.toggle('on', button.dataset.state === draft);
+      button.addEventListener('click', (event) => { event.stopPropagation(); setDraft(seq, button.dataset.state); });
+    }
+    popover.querySelector('.fp-close').addEventListener('click', (event) => { event.stopPropagation(); closePopover(); });
+    if (selectedMarker) positionPopover(selectedMarker, popover);
+  }
+
+  function updateMarkerDraft(marker) {
+    if (!marker) return;
+    marker.classList.remove('draft-allow', 'draft-deny', 'draft-ask');
+    const drafted = (bucketRows.get(marker.dataset.key) || []).map((row) => drafts.get(String(row[0]))).filter(Boolean);
+    if (drafted.length) marker.classList.add('draft-' + drafted[drafted.length - 1]);
+    marker.classList.toggle('has-draft', drafted.length > 0);
+  }
+
+  function setBlockDraft(marker, state) {
+    const rows = bucketRows.get(marker.dataset.key) || [];
+    if (!rows.length) return;
+    const allOn = rows.every((row) => drafts.get(String(row[0])) === state);
+    for (const row of rows) {
+      const key = String(row[0]);
+      if (allOn) drafts.delete(key); else drafts.set(key, state);
+    }
+    updateMarkerDraft(marker);
+    updateExportDraft();
+    const popover = el('flow-popover');
+    if (popover && !popover.hidden) {
+      const draft = popover.querySelector('#fp-block-draft');
+      if (draft) draft.textContent = 'draft: ' + (allOn ? 'unset' : state);
+      for (const button of popover.querySelectorAll('[data-block-state]')) button.classList.toggle('on', !allOn && button.dataset.blockState === state);
+    }
+  }
+
+  function setDraft(seq, state) {
+    const key = String(seq);
+    const current = drafts.get(key) || 'unset';
+    const next = current === state ? 'unset' : state;
+    const scopeAll = document.getElementById('fp-all') && document.getElementById('fp-all').checked;
+    const rows = selectedMarker ? (bucketRows.get(selectedMarker.dataset.key) || [bySeq.get(key)]) : [bySeq.get(key)];
+    const targets = scopeAll ? rows : [bySeq.get(key)];
+    for (const row of targets) {
+      if (!row) continue;
+      if (next === 'unset') drafts.delete(String(row[0])); else drafts.set(String(row[0]), next);
+    }
+    updateExportDraft();
+    const marker = selectedMarker || markerBySeq.get(key);
+    if (marker) {
+      marker.classList.remove('draft-allow', 'draft-deny', 'draft-ask');
+      const drafted = (bucketRows.get(marker.dataset.key) || []).map((row) => drafts.get(String(row[0]))).filter(Boolean);
+      if (drafted.length) marker.classList.add('draft-' + drafted[drafted.length - 1]);
+      marker.classList.toggle('has-draft', drafted.length > 0);
+    }
+    const popover = el('flow-popover');
+    if (popover && !popover.hidden) {
+      const buttons = popover.querySelectorAll('.fp-actions button');
+      for (const button of buttons) button.classList.toggle('on', button.dataset.state === next);
+      const draft = popover.querySelector('#fp-draft');
+      if (draft) draft.textContent = next + (scopeAll && rows.length > 1 ? ' (all)' : '');
+    }
+  }
+
+  async function loadDay(day) {
+    if (!v1) return;
+    const [summaryResponse, flowResponse] = await Promise.all([
+      fetch('/api/v1/summary?day=' + encodeURIComponent(day) + '&tz=' + encodeURIComponent(TZ), { cache: 'no-store', headers: AUTH }),
+      fetch('/api/v1/flow?day=' + encodeURIComponent(day) + '&tz=' + encodeURIComponent(TZ), { cache: 'no-store', headers: AUTH })
+    ]);
+    if (!summaryResponse.ok) throw new Error('summary ' + summaryResponse.status);
+    if (!flowResponse.ok) throw new Error('flow ' + flowResponse.status);
+    const summaryValue = await summaryResponse.json();
+    summaryCache.set(day, summaryValue);
+    dayStats.set(day, { day, calls: summaryValue.calls, blocked: summaryValue.blocked });
+    flowCache.set(day, await flowResponse.json());
+    calls[day] = calls[day] || [];
+    initialHead = Math.max(initialHead, Number(summaryValue.head || 0));
+  }
+
+  async function renderDay(day) {
+    if (!calls[day] && !v1) return;
+    const request = ++dayRequest;
+    if (selectedDay !== day && drafts.size > 0) {
+      drafts.clear();
+      updateExportDraft();
+    }
+    selectedDay = day;
+    callsDay = day;
+    callsPage = 0;
+    closePopover();
+    if (v1) {
+      try {
+        if (!summaryCache.has(day) || !flowCache.has(day)) await loadDay(day);
+        if (request !== dayRequest) return;
+      } catch (error) {
+        el('flow-sub').textContent = 'Could not load day: ' + error.message;
+        return;
+      }
+    }
+    renderDayStrip();
+    renderDayHeader(day);
+    renderFlow(day);
+    el('calls-day').value = callsDay;
+    if (v1) await loadCalls(true);
+    else renderCalls();
+    loadUsage(day);
+  }
+
+  function setZoom(next) {
+    const scroller = el('flow-scroller');
+    const currentWidth = scroller.scrollWidth || flowWidth();
+    const centerMinute = currentWidth ? ((scroller.scrollLeft + scroller.clientWidth / 2) / currentWidth) * 1440 : 0;
+    zoom = Math.max(ZOOM_LEVELS[0], Math.min(ZOOM_LEVELS[ZOOM_LEVELS.length - 1], next));
+    el('zoom-out').disabled = zoom <= ZOOM_LEVELS[0];
+    el('zoom-in').disabled = zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+    renderFlow(selectedDay, centerMinute);
+  }
+
+  function updateExportDraft() {
+    const button = el('export-draft');
+    if (!button) return;
+    button.disabled = drafts.size === 0;
+    button.title = drafts.size === 0 ? 'Set a rule on a block first' : '';
+  }
+
+  function exportDraft() {
+    if (drafts.size === 0) return;
+    const output = {
+      generated_at: new Date().toISOString(),
+      day: selectedDay,
+      drafts: [...drafts.entries()].map(([seq, decision]) => {
+        const row = bySeq.get(seq);
+        return { seq: Number(seq), time: row ? row[1] : null, tool: row ? row[2] : null, decision };
+      })
+    };
+    const blob = new Blob([JSON.stringify(output, null, 2) + '\n'], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'bounds-draft-' + selectedDay + '.json';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function lifetimeSummary() {
+    const counts = new Map();
+    let total = 0;
+    if (v1) {
+      for (const stats of dayStats.values()) total += Number(stats.calls || 0);
+      for (const row of allRows) counts.set(row[2], (counts.get(row[2]) || 0) + 1);
+      return { total, tools: [...counts.entries()].sort((a, b) => b[1] - a[1]) };
+    }
+    for (const day of days) for (const row of calls[day] || []) {
+      total += 1;
+      counts.set(row[2], (counts.get(row[2]) || 0) + 1);
+    }
+    return { total, tools: [...counts.entries()].sort((a, b) => b[1] - a[1]) };
+  }
+
+  function renderLifetime() {
+    const { total, tools } = lifetimeSummary();
+    el('ledger-total').textContent = fmt(total);
+    const target = el('calls-lifetime');
+    target.replaceChildren();
+    const label = document.createElement('span');
+    label.textContent = 'Recent ' + fmt(total) + ' calls';
+    target.append(label);
+    for (const [tool, count] of tools.slice(0, 6)) {
+      const span = document.createElement('span');
+      span.textContent = tool + ' ' + fmt(count);
+      target.append(span);
+    }
+  }
+
+  function filteredCalls() {
+    if (v1) return allRows;
+    const query = el('calls-search').value.trim().toLowerCase();
+    const source = callsDay === '*'
+      ? days.flatMap((day) => (calls[day] || []).map((row) => [...row, day]))
+      : (calls[callsDay] || []).map((row) => [...row, callsDay]);
+    return source.filter((row) => {
+      if (callsHour && row[1].slice(0, 2) !== callsHour) return false;
+      if (el('calls-tool').value && row[2] !== el('calls-tool').value) return false;
+      if (el('calls-capability').value && row[3] !== el('calls-capability').value) return false;
+      if (el('calls-decision').value && row[4] !== el('calls-decision').value) return false;
+      if (query && ![String(row[0]), row[1], row[2], row[3], row[4], row[5], row[6], row[7]].join(' ').toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }
+
+  function callFilterKey() {
+    return [callsDay, callsHour, el('calls-tool').value, el('calls-capability').value, el('calls-decision').value, el('calls-search').value.trim()].join('|');
+  }
+
+  async function loadCalls(reset = true, direction = 'next') {
+    const request = ++callsRequest;
+    const key = callFilterKey();
+    if (reset) {
+      allRows = [];
+      allCursors = [];
+      allCursor = '';
+      allKey = key;
+    }
+    if (!reset && key !== allKey) {
+      return loadCalls(true);
+    }
+    if (!reset && direction === 'prev') {
+      if (!allCursors.length) return;
+      allCursor = allCursors.pop();
+    }
+    const params = new URLSearchParams({ tz: TZ, limit: '100' });
+    if (callsDay !== '*') params.set('day', callsDay);
+    if (callsHour) params.set('hour', callsHour);
+    if (el('calls-tool').value) params.set('tool', el('calls-tool').value);
+    if (el('calls-capability').value) params.set('capability', el('calls-capability').value);
+    if (el('calls-decision').value) params.set('decision', el('calls-decision').value);
+    if (el('calls-search').value.trim()) params.set('search', el('calls-search').value.trim());
+    if (allCursor) params.set('cursor', allCursor);
+    try {
+      const response = await fetch('/api/v1/calls?' + params.toString(), { cache: 'no-store', headers: AUTH });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'calls ' + response.status);
+      if (request !== callsRequest) return;
+      const rows = (body.rows || []).map((row) => {
+        const copy = row.slice();
+        copy[7] = row[7] || (callsDay === '*' ? (backfillDay.get(String(row[0])) || '') : callsDay);
+        bySeq.set(String(copy[0]), copy);
+        return copy;
+      });
+      allRows = reset || direction === 'prev' ? rows : allRows.concat(rows);
+      if (!reset && direction !== 'prev') allCursors.push(allCursor);
+      allCursor = body.next_cursor || allCursor;
+      allHasMore = Boolean(body.has_more);
+      for (const row of allRows) {
+        const tool = el('calls-tool');
+        if (![...tool.options].some((option) => option.value === row[2])) {
+          const option = document.createElement('option'); option.value = row[2]; option.textContent = row[2]; tool.append(option);
+        }
+        const cap = el('calls-capability');
+        if (![...cap.options].some((option) => option.value === row[3])) {
+          const option = document.createElement('option'); option.value = row[3]; option.textContent = row[3]; cap.append(option);
+        }
+      }
+      renderCallRows();
+    } catch (error) {
+      el('calls-count').textContent = 'Could not load calls: ' + error.message;
+    }
+  }
+
+  const backfillDay = new Map();
+
+  function renderCallRows() {
+    const body = el('calls-body');
+    body.replaceChildren();
+    for (const row of allRows) {
+      const tr = document.createElement('tr');
+      tr.dataset.seq = String(row[0]);
+      tr.dataset.day = row[7] || '';
+      tr.innerHTML = '<td>' + esc((row[7] || '').slice(5)) + '</td><td>' + esc(row[1]) + '</td><td>' + esc(row[2]) + '</td><td>' + esc(row[3]) + '</td><td class="' + (row[4] === 'ALLOW' ? 'allow' : 'deny') + '">' + esc(row[4]) + '</td><td>' + esc(row[5] || '-') + '</td><td>' + esc(String(row[6]).slice(0, 20)) + '</td>';
+      tr.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        if (row[7] && row[7] !== selectedDay) await renderDay(row[7]);
+        openPopover(row[0], markerBySeq.get(String(row[0])));
+      });
+      body.append(tr);
+    }
+    renderLifetime();
+    el('calls-count').textContent = fmt(allRows.length) + ' loaded';
+    el('calls-page').textContent = allRows.length ? '1-' + allRows.length : '0 calls';
+    el('calls-prev').disabled = allCursors.length === 0;
+    el('calls-next').disabled = !allHasMore;
+  }
+
+  function renderCalls() {
+    if (v1) {
+      loadCalls(true).catch((error) => { el('calls-count').textContent = 'Could not load calls: ' + error.message; });
+      return;
+    }
+    const list = filteredCalls();
+    const pages = Math.max(1, Math.ceil(list.length / PAGE));
+    callsPage = Math.min(callsPage, pages - 1);
+    const start = callsPage * PAGE;
+    const body = el('calls-body');
+    body.replaceChildren();
+    for (const row of list.slice(start, start + PAGE)) {
+      const tr = document.createElement('tr');
+      tr.dataset.seq = String(row[0]);
+      tr.dataset.day = row[7];
+      tr.innerHTML = '<td>' + esc(row[7].slice(5)) + '</td><td>' + esc(row[1]) + '</td><td>' + esc(row[2]) + '</td><td>' + esc(row[3]) + '</td><td class="' + (row[4] === 'ALLOW' ? 'allow' : 'deny') + '">' + esc(row[4]) + '</td><td>' + esc(row[5] || '-') + '</td><td>' + esc(row[6].slice(0, 20)) + '</td>';
+      tr.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (row[7] !== selectedDay) renderDay(row[7]);
+        openPopover(row[0], markerBySeq.get(String(row[0])));
+      });
+      body.append(tr);
+    }
+    renderLifetime();
+    el('calls-count').textContent = fmt(list.length) + ' calls';
+    el('calls-page').textContent = list.length ? (start + 1) + '-' + Math.min(start + PAGE, list.length) + ' of ' + fmt(list.length) : '0 calls';
+    el('calls-prev').disabled = callsPage === 0;
+    el('calls-next').disabled = callsPage >= pages - 1;
+  }
+
+  function openCalls() {
+    callsDay = selectedDay;
+    callsHour = '';
+    callsPage = 0;
+    el('calls-search').value = '';
+    el('calls-tool').value = '';
+    el('calls-capability').value = '';
+    el('calls-decision').value = '';
+    el('calls-hour').value = '';
+    el('calls-day').value = callsDay;
+    renderCalls();
+    el('calls-drawer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function exportCsv() {
+    const rows = v1 ? allRows : filteredCalls();
+    const q = (value) => '"' + String(value ?? '').replaceAll('"', '""') + '"';
+    const lines = ['day,time,tool,capability,decision,rule,task'];
+    for (const row of rows) lines.push([row[7], row[1], row[2], row[3], row[4], row[5], row[6]].map(q).join(','));
+    const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'bounds-calls-' + (callsDay === '*' ? 'lifetime' : callsDay) + '.csv';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  el('prev-day').addEventListener('click', () => {
+    const i = days.indexOf(selectedDay);
+    if (i > 0) renderDay(days[i - 1]);
+  });
+  el('next-day').addEventListener('click', () => {
+    const i = days.indexOf(selectedDay);
+    if (i < days.length - 1) renderDay(days[i + 1]);
+  });
+  el('flow-start').addEventListener('click', () => { el('flow-scroller').scrollTo({ left: 0, behavior: 'auto' }); });
+  el('flow-end').addEventListener('click', () => { el('flow-scroller').scrollTo({ left: el('flow-scroller').scrollWidth, behavior: 'auto' }); });
+  el('flow-prev').addEventListener('click', () => { el('flow-scroller').scrollBy({ left: -720, behavior: 'smooth' }); });
+  el('flow-next').addEventListener('click', () => { el('flow-scroller').scrollBy({ left: 720, behavior: 'smooth' }); });
+  el('zoom-out').addEventListener('click', () => { const i = ZOOM_LEVELS.indexOf(zoom); if (i > 0) setZoom(ZOOM_LEVELS[i - 1]); });
+  el('zoom-in').addEventListener('click', () => { const i = ZOOM_LEVELS.indexOf(zoom); if (i < ZOOM_LEVELS.length - 1) setZoom(ZOOM_LEVELS[i + 1]); });
+  el('all-calls').addEventListener('click', openCalls);
+  el('flow-calls').addEventListener('click', openCalls);
+  el('export-draft').addEventListener('click', exportDraft);
+  el('agent-action').addEventListener('click', () => { const panel = el('agent-setup'); panel.hidden = !panel.hidden; if (!panel.hidden) { renderAgentPanel(); refreshStatus(); } });
+  el('agent-setup-close').addEventListener('click', () => { el('agent-setup').hidden = true; });
+  el('workspace-open').addEventListener('click', openWorkspacePanel);
+  el('workspace-close').addEventListener('click', () => { el('workspace-panel').hidden = true; });
+  el('workspace-save').addEventListener('click', saveWorkspace);
+  el('workspace-sync').addEventListener('click', syncWorkspace);
+  el('workspace-disconnect').addEventListener('click', disconnectWorkspace);
+  el('agent-connect-now').addEventListener('click', connectNow);
+  el('agent-modes').addEventListener('click', (event) => { const button = event.target.closest('[data-agent-mode]'); if (button && !button.disabled) setAgentMode(button.dataset.agentMode); });
+  el('agent-manage-paths').addEventListener('click', () => { el('paths').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  el('root-add').addEventListener('click', () => { if (el('root-input').value.trim()) addRoot(); else el('root-input').focus(); });
+  el('root-commit').addEventListener('click', addRoot);
+  el('exclusion-add').addEventListener('click', () => { if (el('exclusion-input').value.trim()) addExclusion(); else el('exclusion-input').focus(); });
+  el('exclusion-commit').addEventListener('click', addExclusion);
+  el('paths-save').addEventListener('click', savePaths);
+  el('flow-search').addEventListener('input', applyFlowFilter);
+  el('flow-cap').addEventListener('change', applyFlowFilter);
+  el('flow-decision').addEventListener('change', applyFlowFilter);
+  el('flow-track').addEventListener('click', (event) => {
+    const marker = event.target.closest('.fm');
+    if (!marker) return;
+    openBucket(marker);
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#flow-popover') && !event.target.closest('.fm')) closePopover();
+  });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePopover(); });
+  el('calls-csv').addEventListener('click', exportCsv);
+  el('calls-day').addEventListener('change', () => { callsDay = el('calls-day').value; callsPage = 0; renderCalls(); });
+  el('calls-search').addEventListener('input', () => { callsPage = 0; renderCalls(); });
+  el('calls-tool').addEventListener('change', () => { callsPage = 0; renderCalls(); });
+  el('calls-capability').addEventListener('change', () => { callsPage = 0; renderCalls(); });
+  el('calls-decision').addEventListener('change', () => { callsPage = 0; renderCalls(); });
+  el('calls-hour').addEventListener('change', () => { callsHour = el('calls-hour').value; callsPage = 0; renderCalls(); });
+  el('calls-prev').addEventListener('click', () => { if (v1) loadCalls(false, 'prev'); else if (callsPage > 0) { callsPage -= 1; renderCalls(); } });
+  el('calls-next').addEventListener('click', () => { if (v1) loadCalls(false, 'next'); else { callsPage += 1; renderCalls(); } });
+
+  for (const day of days) {
+    const option = document.createElement('option');
+    option.value = day;
+    option.textContent = dayDate(day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    el('calls-day').append(option);
+  }
+  for (let hour = 0; hour < 24; hour += 1) {
+    const option = document.createElement('option');
+    option.value = String(hour).padStart(2, '0');
+    option.textContent = String(hour).padStart(2, '0') + ':00';
+    el('calls-hour').append(option);
+  }
+  const tools = new Set();
+  const caps = new Set();
+  for (const day of days) for (const row of calls[day] || []) { tools.add(row[2]); caps.add(row[3]); }
+  for (const tool of [...tools].sort()) {
+    const option = document.createElement('option');
+    option.value = tool;
+    option.textContent = tool;
+    el('calls-tool').append(option);
+  }
+  for (const cap of [...caps].sort()) {
+    const option = document.createElement('option');
+    option.value = cap;
+    option.textContent = cap;
+    el('calls-capability').append(option);
+  }
+
+  renderAgentStatus();
+  renderPaths();
+  loadWorkspace();
+  if (requestedTask) el('flow-search').value = requestedTask;
+  renderDay(selectedDay).then(async () => {
+    if (!Number.isInteger(requestedSeq) || requestedSeq <= 0) return;
+    try {
+      await openDeepLink(requestedSeq);
+    } catch (error) {
+      el('flow-sub').textContent = 'Could not open decision #' + requestedSeq + ': ' + error.message;
+    }
+  });
+  if (controlApi) { setInterval(refreshStatus, 2000); startLive(); }
+  el('zoom-out').disabled = zoom <= ZOOM_LEVELS[0];
+  el('zoom-in').disabled = zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+})();
+</script>
+</body>
+</html>

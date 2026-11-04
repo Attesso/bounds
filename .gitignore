@@ -1,0 +1,5 @@
+node_modules/
+.attesso/
+coverage/
+*.tgz
+.DS_Store

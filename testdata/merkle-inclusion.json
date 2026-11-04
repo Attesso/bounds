@@ -1,0 +1,1156 @@
+{
+  "source": "transparency-dev/merkle testdata/inclusion, commit c39fbf350a40",
+  "license": "Apache-2.0",
+  "cases": [
+    {
+      "name": "0/empty-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "0/happy-path.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": false
+    },
+    {
+      "name": "0/leafIdx-XOR-@2.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 2,
+      "treeSize": 1,
+      "proof": [],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/leafIdx-plus-@1.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 1,
+      "treeSize": 1,
+      "proof": [],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/leafIdx-sub-@1.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 18446744073709552000,
+      "treeSize": 1,
+      "proof": [],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/preceding-garbage.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [
+        ""
+      ],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/preceding-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0="
+      ],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/random-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "wantErr": true
+    },
+    {
+      "name": "0/trailing-garbage.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [
+        ""
+      ],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/trailing-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0="
+      ],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/treeSize-div-@2.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 0,
+      "proof": [],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/treeSize-mul-@2.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 2,
+      "proof": [],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "0/wrong-leaf.json",
+      "leafHash": "V3JvbmdMZWFm",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "wantErr": true
+    },
+    {
+      "name": "1/empty-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "1/happy-path.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": false
+    },
+    {
+      "name": "1/inserted-component.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/leafIdx-XOR-@2.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 2,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/leafIdx-plus-@1.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 1,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/leafIdx-sub-@1.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 18446744073709552000,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/modified-proof[0]-bit-@3.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "nqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/modified-proof[1]-bit-@3.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Vwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/modified-proof[2]-bit-@3.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "Y0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/preceding-garbage.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "",
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/preceding-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/random-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "wantErr": true
+    },
+    {
+      "name": "1/removed-component.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/trailing-garbage.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ=",
+        ""
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/trailing-root.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ=",
+        "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/treeSize-div-@2.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 4,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/treeSize-mul-@2.json",
+      "leafHash": "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+      "leafIdx": 0,
+      "treeSize": 16,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "1/wrong-leaf.json",
+      "leafHash": "V3JvbmdMZWFm",
+      "leafIdx": 0,
+      "treeSize": 8,
+      "proof": [
+        "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "a0eq8p7jwq+a+Im8H7klTavTEXfxYjLdaqsDXKOb9uQ="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/empty-root.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "2/happy-path.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": false
+    },
+    {
+      "name": "2/inserted-component.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/leafIdx-XOR-@2.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 7,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/leafIdx-plus-@1.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 6,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/leafIdx-sub-@1.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 4,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/modified-proof[0]-bit-@3.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "tBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/modified-proof[1]-bit-@3.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "woVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/modified-proof[2]-bit-@3.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "237kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/preceding-garbage.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/preceding-root.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/random-root.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "wantErr": true
+    },
+    {
+      "name": "2/removed-component.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/trailing-garbage.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc=",
+        ""
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/trailing-root.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc=",
+        "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/treeSize-div-@2.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 4,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/treeSize-mul-@2.json",
+      "leafHash": "QnGia+DYqE8L1UyMMC58s6O10fpngKQLzOKHNHfatlg=",
+      "leafIdx": 5,
+      "treeSize": 16,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "2/wrong-leaf.json",
+      "leafHash": "V3JvbmdMZWFm",
+      "leafIdx": 5,
+      "treeSize": 8,
+      "proof": [
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "yoVOoSjtBQtBs1/8G4e46yveRh6eO1WW7Oa51ZdaCuA=",
+        "037kGJdt2VdTwcc4Yrk5j6Kiz5tP8P3+izDNlSCWFLc="
+      ],
+      "root": "XcnaeacGWamtVZy3Ad7ZoqudgjqtL0lgz+Nw7/RgQyg=",
+      "wantErr": true
+    },
+    {
+      "name": "3/empty-root.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "3/happy-path.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": false
+    },
+    {
+      "name": "3/leafIdx-XOR-@2.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 0,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/leafIdx-plus-@1.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 3,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/leafIdx-sub-@1.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 1,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/modified-proof[0]-bit-@3.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "8sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/preceding-garbage.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "",
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/preceding-root.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/random-root.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "wantErr": true
+    },
+    {
+      "name": "3/removed-component.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/trailing-garbage.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU=",
+        ""
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/trailing-root.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU=",
+        "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/treeSize-div-@2.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 1,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/treeSize-mul-@2.json",
+      "leafHash": "ApjRIpBtz8EIkstTpzmS/FufST6kybrbJ7eRtBJ6f+c=",
+      "leafIdx": 2,
+      "treeSize": 6,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "3/wrong-leaf.json",
+      "leafHash": "V3JvbmdMZWFm",
+      "leafIdx": 2,
+      "treeSize": 3,
+      "proof": [
+        "+sVCA+fMaWzw38tCySodnbr3CtnmIfS9jZhmLwDjwSU="
+      ],
+      "root": "rra8/idLcKFPsGel5VeCZNsPqbUa9eC6FZFY8yngbnc=",
+      "wantErr": true
+    },
+    {
+      "name": "4/empty-root.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "4/happy-path.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": false
+    },
+    {
+      "name": "4/inserted-component.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/leafIdx-XOR-@2.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 3,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/leafIdx-plus-@1.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 2,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/leafIdx-sub-@1.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 0,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/modified-proof[0]-bit-@3.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "ZjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/modified-proof[1]-bit-@3.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Vwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/modified-proof[2]-bit-@3.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "tBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/preceding-garbage.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "",
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/preceding-root.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/random-root.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "wantErr": true
+    },
+    {
+      "name": "4/removed-component.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/trailing-garbage.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        ""
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/trailing-root.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms=",
+        "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/treeSize-div-@2.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 2,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/treeSize-mul-@2.json",
+      "leafHash": "lqKW0iTyhcZ77pPDD4owkVfw2qNdxbh+QQt4YwoJz8c=",
+      "leafIdx": 1,
+      "treeSize": 10,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "4/wrong-leaf.json",
+      "leafHash": "V3JvbmdMZWFm",
+      "leafIdx": 1,
+      "treeSize": 5,
+      "proof": [
+        "bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0=",
+        "Xwg/ChozygdqlSeYMlgNs+DvRYS9/x9UyKNg9Q3jAx4=",
+        "vBoGQ7EuTS18d5GPROD095qDi2z57FtcKD4fTYhZnms="
+      ],
+      "root": "Tju7H3tHjc/nH7YxYxUZo7yhLJrvyhYSv85ME6hiZNQ=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/0/empty-root-and-random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 0,
+      "treeSize": 0,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/0/empty-root.json",
+      "leafHash": "",
+      "leafIdx": 0,
+      "treeSize": 0,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/0/random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 0,
+      "treeSize": 0,
+      "proof": [],
+      "root": "",
+      "wantErr": true
+    },
+    {
+      "name": "additional/1/empty-root-and-random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/1/empty-root.json",
+      "leafHash": "",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/1/random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "",
+      "wantErr": true
+    },
+    {
+      "name": "additional/2/empty-root-and-random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 1,
+      "treeSize": 0,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/2/empty-root.json",
+      "leafHash": "",
+      "leafIdx": 1,
+      "treeSize": 0,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/2/random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 1,
+      "treeSize": 0,
+      "proof": [],
+      "root": "",
+      "wantErr": true
+    },
+    {
+      "name": "additional/3/empty-root-and-random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 2,
+      "treeSize": 1,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/3/empty-root.json",
+      "leafHash": "",
+      "leafIdx": 2,
+      "treeSize": 1,
+      "proof": [],
+      "root": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+      "wantErr": true
+    },
+    {
+      "name": "additional/3/random-leaf.json",
+      "leafHash": "q6yroAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAGHgASNFY=",
+      "leafIdx": 2,
+      "treeSize": 1,
+      "proof": [],
+      "root": "",
+      "wantErr": true
+    },
+    {
+      "name": "single-entry/empty-leaf.json",
+      "leafHash": "",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "DTrtAjFI/9KiWfvQzcf7PPl1ZYdg03dbgq9vkKrMLfw=",
+      "wantErr": true
+    },
+    {
+      "name": "single-entry/empty-root-and-leaf.json",
+      "leafHash": "",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "",
+      "wantErr": true
+    },
+    {
+      "name": "single-entry/empty-root.json",
+      "leafHash": "DTrtAjFI/9KiWfvQzcf7PPl1ZYdg03dbgq9vkKrMLfw=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "",
+      "wantErr": true
+    },
+    {
+      "name": "single-entry/matching-root-and-leaf.json",
+      "leafHash": "DTrtAjFI/9KiWfvQzcf7PPl1ZYdg03dbgq9vkKrMLfw=",
+      "leafIdx": 0,
+      "treeSize": 1,
+      "proof": [],
+      "root": "DTrtAjFI/9KiWfvQzcf7PPl1ZYdg03dbgq9vkKrMLfw=",
+      "wantErr": false
+    }
+  ]
+}
