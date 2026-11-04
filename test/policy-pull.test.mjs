@@ -26,7 +26,9 @@ function bundle({ kid = 'policy-key', rules, version = 3, tamper = false } = {})
   const signature = sign('sha256', Buffer.from(`${protectedValue}.${payloadValue}`), {
     key: privateKey,
     dsaEncoding: 'ieee-p1363',
-  }).toString('base64url');
+  });
+  // Zeroing the base64 tail is a no-op when those bits were already zero; flip a real byte.
+  if (tamper) signature[0] ^= 1;
   return {
     format: POLICY_FORMAT,
     version,
@@ -36,7 +38,7 @@ function bundle({ kid = 'policy-key', rules, version = 3, tamper = false } = {})
       format: POLICY_FORMAT,
       protected: protectedValue,
       payload: payloadValue,
-      signature: tamper ? `${signature.slice(0, -2)}AA` : signature,
+      signature: signature.toString('base64url'),
     },
   };
 }
