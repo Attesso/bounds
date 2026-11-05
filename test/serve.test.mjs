@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { readState } from '../src/store.mjs';
+import { readDetail, readState } from '../src/store.mjs';
+import { verifyDetail } from '../src/detail.mjs';
 
 const bin = fileURLToPath(new URL('../bin/attesso.mjs', import.meta.url));
 
@@ -46,6 +47,27 @@ const fresh = (run) => {
   run(dir);
   return dir;
 };
+
+test('serve captures a detail when the request carries tool_input', async () => {
+  const dir = fresh((path) => {
+    execFileSync('node', [bin, '--dir', path, 'init']);
+  });
+  const daemon = session(dir);
+  const reply = await daemon.ask({
+    action: 'tool.call',
+    subject: 'terminal',
+    task: 'job-1',
+    capability: 'execute',
+    tool_input: { command: 'echo hi' },
+  });
+  assert.equal(reply.decision, 'ALLOW');
+  await daemon.end();
+  const entry = readState(dir).entries.at(-1);
+  assert.match(entry.detail_hash, /^[a-f0-9]{64}$/);
+  const detail = readDetail(dir, entry.seq);
+  assert.equal(detail.summary, 'echo hi');
+  assert.deepEqual(verifyDetail(entry, detail), { ok: true });
+});
 
 test('serve answers each line and keeps the chain verifiable', async () => {
   const dir = fresh((path) => {

@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { replay, renderReplay } from '../src/replay.mjs';
 import { validateRules } from '../src/rules.mjs';
-import { append, init, paths, readState } from '../src/store.mjs';
+import { append, appendUsage, init, paths, readState, setRunBudget } from '../src/store.mjs';
+import { endRun, startRun } from '../src/run.mjs';
 import { initWorkspace, runCli } from './helpers.mjs';
 
 const rulesOf = (dir) => validateRules(JSON.parse(readFileSync(paths(dir).rules, 'utf8')));
@@ -40,6 +41,20 @@ test('replay recomputes the verdict and names exactly what changed', () => {
   assert.deepEqual(summary.changed.map((row) => row.seq), [1]);
   assert.equal(summary.changed[0].to.code, 'ACTION_MISMATCH');
   assert.match(renderReplay(summary), /1 newly denied/);
+});
+
+test('a run boundary is not re-judged by the budget', () => {
+  const dir = initWorkspace('attesso-replay-run');
+  setRunBudget(dir, { tokens: '1000', enforce: true });
+  startRun(dir, {});
+  appendUsage(dir, { task: 'task-1', inputTokens: 600, outputTokens: 600 });
+  endRun(dir);
+
+  const state = readState(dir);
+  const summary = replay(state.entries, { policy: state.policy, rules: rulesOf(dir) });
+  assert.equal(summary.total, 3);
+  assert.equal(summary.changed.length, 0);
+  assert.equal(summary.unenforceable, 0);
 });
 
 test('replay injects each entry time, so a window boundary reproduces', () => {

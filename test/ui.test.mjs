@@ -3,7 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { append, init, paths } from '../src/store.mjs';
+import { append, deleteDetail, init, paths, readDetail, setRunBudget } from '../src/store.mjs';
+import { endRun, startRun } from '../src/run.mjs';
 import { startUi } from '../src/ui/server.mjs';
 import { tempDir } from './helpers.mjs';
 
@@ -21,6 +22,62 @@ const post = (ui, path, body) => fetch(`${ui.url}${path}`, {
   method: 'POST',
   headers: headers(ui.token),
   body: JSON.stringify(body),
+});
+
+test('run markers do not appear as calls', async () => {
+  const { ledger, home } = fixture();
+  append(ledger, { action: 'tool.call', subject: 'read_file', task: 'task-1', trust: 'internal', capability: 'read' });
+  append(ledger, { action: 'run.start', subject: 'run' });
+  append(ledger, { action: 'run.end', subject: 'run' });
+  const ui = await startUi({ dir: ledger, home, port: 0, open: false });
+  try {
+    const body = await (await get(ui, 'api/calls')).json();
+    assert.equal(sizeof(body.days), 1);
+    const day = Object.keys(body.days)[0];
+    assert.deepEqual(body.days[day].map((row) => row[2]), ['read_file']);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the detail endpoint verifies, and names missing and changed previews', async () => {
+  const { ledger, home } = fixture();
+  const entry = append(ledger, {
+    action: 'tool.call',
+    subject: 'terminal',
+    task: 'task-1',
+    capability: 'execute',
+    detail_input: { command: 'echo hi' },
+  });
+  const ui = await startUi({ dir: ledger, home, port: 0, open: false });
+  try {
+    const verified = await (await get(ui, `api/v1/detail?seq=${entry.seq}`)).json();
+    assert.equal(verified.state, 'verified');
+    assert.equal(verified.detail.summary, 'echo hi');
+
+    const none = append(ledger, { action: 'tool.call', subject: 'terminal', task: 'task-2', capability: 'execute' });
+    assert.equal((await (await get(ui, `api/v1/detail?seq=${none.seq}`)).json()).state, 'none');
+
+    deleteDetail(ledger, entry.seq);
+    assert.equal((await (await get(ui, `api/v1/detail?seq=${entry.seq}`)).json()).state, 'missing');
+
+    const second = append(ledger, {
+      action: 'tool.call',
+      subject: 'terminal',
+      task: 'task-3',
+      capability: 'execute',
+      detail_input: { command: 'echo changed' },
+    });
+    const detail = readDetail(ledger, second.seq);
+    writeFileSync(join(paths(ledger).details, `${second.seq}.json`), JSON.stringify({ ...detail, summary: 'tampered' }));
+    assert.equal((await (await get(ui, `api/v1/detail?seq=${second.seq}`)).json()).state, 'changed');
+
+    assert.equal((await get(ui, 'api/v1/detail?seq=0')).status, 400);
+    assert.equal((await get(ui, 'api/v1/detail?seq=999999')).status, 404);
+    assert.equal((await fetch(`${ui.url}api/v1/detail?seq=${entry.seq}`)).status, 401);
+  } finally {
+    await ui.close();
+  }
 });
 
 test('ui refuses to start without a ledger', () => {
@@ -51,7 +108,11 @@ test('the packaged UI serves the page, status, calls and paths over loopback', a
 
     const status = await get(ui, 'api/status');
     assert.equal(status.status, 200);
-    assert.equal((await status.json()).initialized, true);
+    const statusBody = await status.json();
+    assert.equal(statusBody.initialized, true);
+    assert.equal(statusBody.budget, null);
+    assert.equal(statusBody.run, null);
+    assert.equal(statusBody.last, null);
 
     const calls = await get(ui, 'api/calls');
     const body = await calls.json();
@@ -98,6 +159,44 @@ test('the packaged UI serves the page, status, calls and paths over loopback', a
     assert.equal((await post(ui, 'api/workspace', { sync_url: 'http://remote.example', api_key: 'att_test_abcdefghijkl' })).status, 400);
     assert.equal((await fetch(`${ui.url}api/workspace`, { method: 'DELETE', headers: headers(ui.token) })).status, 200);
     assert.deepEqual(await (await get(ui, 'api/workspace')).json(), { connected: false });
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the status endpoint reports the run budget', async () => {
+  const { ledger, home } = fixture();
+  setRunBudget(ledger, { tokens: '1000', usd: '0.5', enforce: true });
+  const run = startRun(ledger, { goal: 'dogfood' });
+  const ui = await startUi({ dir: ledger, home, port: 0, open: false });
+  try {
+    const body = await (await get(ui, 'api/status')).json();
+    assert.deepEqual(body.budget, { tokens: 1000, usd: 0.5, enforce: true });
+    assert.equal(body.run.id, run.id);
+    assert.equal(body.run.goal, 'dogfood');
+    assert.equal(body.last, null);
+
+    endRun(ledger, { outcome: 'success', note: 'done' });
+    const after = await (await get(ui, 'api/status')).json();
+    assert.equal(after.run, null);
+    assert.equal(after.last.outcome, 'success');
+    assert.equal(after.last.goal, 'dogfood');
+    assert.equal(after.last.note, 'done');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the status endpoint names unreadable rules instead of hiding them', async () => {
+  const { ledger, home } = fixture();
+  writeFileSync(paths(ledger).rules, JSON.stringify({
+    version: 1,
+    rules: [{ id: 'run-budget', max_tokens: -1, deny: { capabilities: ['execute'] } }],
+  }));
+  const ui = await startUi({ dir: ledger, home, port: 0, open: false });
+  try {
+    const body = await (await get(ui, 'api/status')).json();
+    assert.deepEqual(body.budget, { error: 'rules unreadable' });
   } finally {
     await ui.close();
   }

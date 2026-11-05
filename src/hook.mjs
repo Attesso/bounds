@@ -39,6 +39,7 @@ export function requestFromPayload(payload, tools) {
     trust,
     capability,
     args_hash: argsFingerprint(payload.tool_input),
+    detail_input: payload.tool_input ?? {},
     tool_hash: toolHash,
     path: pathFromPayload(payload),
   };
@@ -67,7 +68,7 @@ export function createHookDecider({ append, dir, observe }) {
       control ? { control: { mode: control.mode, at: control.at, reason: control.reason } } : undefined,
     );
     const refused = entry.decision !== 'ALLOW';
-    const enforced = refused && (!observe || entry.control !== undefined);
+    const enforced = refused && (!observe || entry.control !== undefined || entry.enforce === true);
     return {
       exitCode: enforced ? 2 : 0,
       body: {
@@ -89,6 +90,9 @@ function refusalMessage(entry, toolName) {
   if (entry.control) {
     const verb = entry.control.mode === 'stop' ? 'stopped' : 'paused';
     return `Attesso ${verb} task ${entry.task}: ${entry.code}. Run attesso resume ${entry.task} when ready.`;
+  }
+  if (entry.code === 'BUDGET_EXCEEDED') {
+    return `Attesso stopped this run: the budget in ${entry.rule} is exhausted. Summarize and stop, or raise the budget. Entry #${entry.seq}.`;
   }
   if (entry.rule && entry.tainted_by !== undefined) {
     return `Attesso refused ${toolName}: ${entry.code} by ${entry.rule} (step #${entry.tainted_by} tainted this task). Entry #${entry.seq} in the signed ledger.`;

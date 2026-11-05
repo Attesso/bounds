@@ -3,7 +3,9 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { classifyTool } from '../src/classify.mjs';
-import { readState } from '../src/store.mjs';
+import { verifyChain } from '../src/ledger.mjs';
+import { verifyDetail } from '../src/detail.mjs';
+import { paths, readDetail, readState, appendUsage } from '../src/store.mjs';
 import { hookCall, initWorkspace } from './helpers.mjs';
 
 test('the hook allows a read and refuses the send that follows it', () => {
@@ -47,6 +49,51 @@ test('observe mode records the refusal and still exits 0', () => {
   assert.equal(entries[1].decision, 'DENY');
 });
 
+test('observe mode blocks an enforced rule and signs the fact', () => {
+  const dir = initWorkspace('attesso-hook');
+  writeFileSync(paths(dir).rules, JSON.stringify({
+    version: 1,
+    rules: [{
+      id: 'no-send-enforced',
+      deny: { capabilities: ['send'] },
+      if_path: { trust: 'untrusted', capability: 'read' },
+      enforce: true,
+    }],
+  }));
+  hookCall(dir, { tool_name: 'web_extract' });
+  const send = hookCall(dir, { tool_name: 'send_email' }, ['--observe']);
+  assert.equal(send.status, 2);
+  const body = JSON.parse(send.stdout);
+  assert.equal(body.decision, 'block');
+  const state = readState(dir);
+  assert.equal(state.entries[1].decision, 'DENY');
+  assert.equal(state.entries[1].enforce, true);
+  assert.equal(verifyChain(state.entries, state.key.public, state.config.head).ok, true);
+});
+
+test('observe mode stops a run at its enforced budget', () => {
+  const dir = initWorkspace('attesso-hook');
+  writeFileSync(paths(dir).rules, JSON.stringify({
+    version: 1,
+    rules: [{
+      id: 'run-budget',
+      max_tokens: 1000,
+      deny: { capabilities: ['execute'] },
+      enforce: true,
+    }],
+  }));
+  appendUsage(dir, { task: 'session-1', inputTokens: 600, outputTokens: 600 });
+  const stop = hookCall(dir, { tool_name: 'terminal', tool_input: {} }, ['--observe']);
+  assert.equal(stop.status, 2);
+  const body = JSON.parse(stop.stdout);
+  assert.equal(body.code, 'BUDGET_EXCEEDED');
+  assert.match(body.message, /budget/);
+  const state = readState(dir);
+  assert.equal(state.entries[1].code, 'BUDGET_EXCEEDED');
+  assert.equal(state.entries[1].enforce, true);
+  assert.equal(verifyChain(state.entries, state.key.public, state.config.head).ok, true);
+});
+
 test('a task boundary keeps the taint from crossing sessions', () => {
   const dir = initWorkspace('attesso-hook');
   hookCall(dir, { tool_name: 'web_extract' });
@@ -71,4 +118,15 @@ test('tool names map to one capability each', () => {
   assert.deepEqual(classifyTool('write_file'), { action: 'file.write', capability: 'write', trust: 'internal' });
   assert.equal(classifyTool('send_email').capability, 'send');
   assert.equal(classifyTool('read_file').capability, 'read');
+});
+
+test('the hook records a local detail for the tool input', () => {
+  const dir = initWorkspace('attesso-hook-detail');
+  const call = hookCall(dir, { tool_name: 'read_file', tool_input: { path: '/tmp/a.txt' } });
+  assert.equal(call.status, 0);
+  const entry = readState(dir).entries.at(-1);
+  assert.match(entry.detail_hash, /^[a-f0-9]{64}$/);
+  const detail = readDetail(dir, entry.seq);
+  assert.equal(detail.summary, '/tmp/a.txt');
+  assert.deepEqual(verifyDetail(entry, detail), { ok: true });
 });

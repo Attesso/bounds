@@ -6,13 +6,13 @@
 //   attesso log --action purchase.execute --subject shop.example --amount 12.50 --currency EUR
 //   attesso verify
 //   attesso show
-import { verifyChain } from './../src/ledger.mjs';
+import { verifyChain, verifyEntry } from './../src/ledger.mjs';
 import { bundleFor, verifyBundle } from './../src/bundle.mjs';
 import { packetFor, verifyPacket } from './../src/packet.mjs';
 import { resolveWorkspace } from './../src/workspace.mjs';
 import { formatMinor, toMinor, validatePolicy } from './../src/policy.mjs';
 import { checkpointFor, receiptFor, signerOf, verifyPinned, verifyReceipt } from './../src/receipt.mjs';
-import { append, appendUsage, init, isInitialised, paths, readState, readToolLock, setRulesProfile, verifyLedger, withLedgerLock, writeMcpManifest, writeToolLock } from './../src/store.mjs';
+import { append, appendUsage, deleteDetail, init, isInitialised, paths, readActiveRun, readDetail, readState, readToolLock, setRulesProfile, setRunBudget, verifyLedger, withLedgerLock, writeMcpManifest, writeToolLock } from './../src/store.mjs';
 import { buildReportStream, renderReport } from './../src/report.mjs';
 import { replay, renderReplay } from './../src/replay.mjs';
 import { watchEntries } from './../src/watch.mjs';
@@ -33,6 +33,8 @@ import { validatePathsConfig } from './../src/fs-paths.mjs';
 import { startUi } from './../src/ui/server.mjs';
 import { sync, watchSync } from './../src/sync.mjs';
 import { pullPolicy } from './../src/remote-policy.mjs';
+import { endRun, startRun } from './../src/run.mjs';
+import { verifyDetail } from './../src/detail.mjs';
 
 const argv = process.argv.slice(2);
 const dirAt = argv.indexOf('--dir');
@@ -50,8 +52,17 @@ const USAGE = `attesso: a local, signed ledger of what your agents attempted
                                      and the path of its task, then record it
   attesso verify                     recompute the chain and report the first defect
   attesso verify --pin PATH          also check the log extends a pinned checkpoint
+  attesso verify --details           also check every local action preview
   attesso rules set-profile balanced|strict
                                      adopt a shipped rule profile, keeping the old file as .bak
+  attesso budget --tokens N [--usd X] [--enforce] [--off]
+                                     cap one run; --enforce blocks, --off removes
+  attesso run start [--goal TEXT]   start a run; a budget counts this run
+  attesso run status [--json]       show the active run
+  attesso run end [--outcome success|failed|abandoned] [--note TEXT]
+                                     close the active run and record its outcome
+  attesso detail <seq> [--json] [--delete]
+                                     show or remove the local preview behind one decision
   attesso pause <task> [--reason TEXT]  refuse the next actions of one task
   attesso stop <task> [--reason TEXT]   refuse one task until it is resumed
   attesso resume <task>                 release a paused or stopped task
@@ -228,6 +239,28 @@ function log(argv) {
   process.exitCode = entry.decision === 'ALLOW' ? 0 : 1;
 }
 
+function verifyDetails(entries) {
+  const tracked = entries.filter((entry) => typeof entry.detail_hash === 'string');
+  let missing = 0;
+  let changed = 0;
+  for (const entry of tracked) {
+    let detail;
+    try {
+      detail = readDetail(DIR, entry.seq);
+    } catch {
+      changed += 1;
+      continue;
+    }
+    if (!detail) {
+      missing += 1;
+      continue;
+    }
+    if (!verifyDetail(entry, detail).ok) changed += 1;
+  }
+  console.log(`details: ${tracked.length} checked, ${missing} missing, ${changed} changed`);
+  if (changed > 0) process.exit(2);
+}
+
 function verify(rest = []) {
   requireLedger();
   const options = flags(rest);
@@ -256,6 +289,7 @@ function verify(rest = []) {
       process.exit(1);
     }
     console.log(`pinned head: ${check.reason}`);
+    if (options.details === true) verifyDetails(state.entries);
     return;
   }
   return (async () => {
@@ -273,6 +307,15 @@ function verify(rest = []) {
       process.exit(1);
     }
     console.log(`ledger verifies: ${result.reason}, key ${result.kid}`);
+    if (options.details === true) {
+      let state;
+      try {
+        state = withLedgerLock(DIR, () => readState(DIR));
+      } catch {
+        state = readState(DIR);
+      }
+      verifyDetails(state.entries);
+    }
   })();
 }
 
@@ -402,6 +445,139 @@ switch (command) {
       console.log(`rules ${result.profile}: ${state}; digest ${result.digest}`);
     } catch (error) {
       console.error(`rules: ${error.message}`);
+      process.exit(2);
+    }
+    break;
+  }
+  case 'budget': {
+    requireLedger();
+    const options = flags(rest);
+    try {
+      const result = setRunBudget(DIR, {
+        tokens: options.tokens,
+        usd: options.usd,
+        enforce: options.enforce === true,
+        off: options.off === true,
+      });
+      if (result.rule) {
+        const limits = [];
+        if (result.rule.max_tokens !== undefined) limits.push(`${result.rule.max_tokens.toLocaleString('en-US')} tokens`);
+        if (result.rule.max_cost_usd !== undefined) limits.push(`$${result.rule.max_cost_usd} USD`);
+        console.log(`budget: ${limits.join(' or ')} per run (${result.rule.enforce ? 'enforced' : 'observe'})`);
+      } else if (result.changed) {
+        console.log('budget: removed');
+      } else {
+        console.log('budget: none set');
+      }
+    } catch (error) {
+      console.error(`budget: ${error.message}`);
+      process.exit(2);
+    }
+    break;
+  }
+  case 'run': {
+    requireLedger();
+    const [subcommand, ...args] = rest;
+    const options = flags(args);
+    try {
+      if (subcommand === 'start') {
+        const run = startRun(DIR, { goal: options.goal });
+        console.log(`run ${run.id} started${run.goal ? `: ${run.goal}` : ''} (#${run.seq})`);
+      } else if (subcommand === 'end') {
+        const run = endRun(DIR, { outcome: options.outcome, note: options.note });
+        console.log(`run ${run.id} ended: ${run.outcome}${run.note ? ` (${run.note})` : ''} (#${run.seq})`);
+      } else if (subcommand === 'status') {
+        const active = readActiveRun(DIR);
+        if (options.json) console.log(JSON.stringify(active, null, 2));
+        else if (active) console.log(`run ${active.id} active since ${active.started_at}${active.goal ? `: ${active.goal}` : ''}`);
+        else console.log('no active run');
+      } else {
+        console.error('usage: attesso run start [--goal TEXT] | run status [--json] | run end');
+        process.exit(2);
+      }
+    } catch (error) {
+      console.error(`run: ${error.message}`);
+      process.exit(2);
+    }
+    break;
+  }
+  case 'detail': {
+    requireLedger();
+    const [seqArg, ...args] = rest;
+    const options = flags(args);
+    if (typeof seqArg !== 'string' || !/^[1-9][0-9]*$/.test(seqArg)) {
+      console.error('usage: attesso detail <seq> [--json] [--delete]');
+      process.exit(2);
+    }
+    const seq = Number(seqArg);
+    try {
+      const state = readState(DIR);
+      const entry = state.entries.find((item) => item.seq === seq);
+      if (!entry) {
+        console.error(`detail: no entry #${seq}`);
+        process.exit(2);
+      }
+      if (options.delete === true) {
+        if (typeof entry.detail_hash !== 'string') {
+          console.error(`detail #${seq} has no preview to delete`);
+          process.exit(2);
+        }
+        deleteDetail(DIR, seq);
+        console.log(`detail ${seq} deleted; the signed entry is unchanged`);
+        break;
+      }
+      if (!verifyEntry(entry, state.key.public)) {
+        console.error(`detail #${seq} does not verify: entry signature does not verify`);
+        process.exit(2);
+      }
+      if (entry.meta?.detail === 'unavailable') {
+        if (options.json === true) console.log(JSON.stringify({ state: 'unavailable', seq: entry.seq, reason: 'the preview could not be captured' }, null, 2));
+        else console.error(`detail #${seq} was not captured: the preview write failed`);
+        process.exit(2);
+      }
+      if (typeof entry.detail_hash !== 'string') {
+        if (options.json === true) console.log(JSON.stringify({ state: 'none', seq: entry.seq }, null, 2));
+        else console.log(`no detail recorded for #${seq}`);
+        break;
+      }
+      const detail = readDetail(DIR, seq);
+      if (!detail) {
+        if (options.json === true) console.log(JSON.stringify({ state: 'missing', seq: entry.seq }, null, 2));
+        else console.error(`detail #${seq} is missing`);
+        process.exit(2);
+      }
+      const checked = verifyDetail(entry, detail);
+      if (!checked.ok) {
+        if (options.json === true) console.log(JSON.stringify({ state: 'changed', seq: entry.seq, reason: checked.reason }, null, 2));
+        else console.error(`detail #${seq} does not verify: ${checked.reason}`);
+        process.exit(2);
+      }
+      if (options.json === true) {
+        console.log(JSON.stringify({
+          state: 'verified',
+          entry: {
+            seq: entry.seq,
+            at: entry.at,
+            action: entry.action,
+            subject: entry.subject,
+            decision: entry.decision,
+            code: entry.code,
+            detail_hash: entry.detail_hash,
+          },
+          detail,
+        }, null, 2));
+      } else {
+        console.log([`#${entry.seq}`, entry.action, entry.subject, entry.decision, entry.code, entry.at].filter(Boolean).join(' '));
+        console.log(`  ${detail.summary}`);
+        for (const [name, value] of Object.entries(detail.fields)) console.log(`  ${name}: ${value}`);
+        if (detail.redactions.length > 0) {
+          console.log(`  redacted: ${detail.redactions.map((item) => `${item.field}(${item.kind})`).join(', ')}`);
+        }
+        if (detail.truncated.fields) console.log('  preview truncated');
+        console.log('  local only; never synced');
+      }
+    } catch (error) {
+      console.error(`detail: ${error.message}`);
       process.exit(2);
     }
     break;

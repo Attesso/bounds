@@ -1,10 +1,11 @@
 // Query contracts over the catalog. The catalog owns byte ranges; this module
 // owns the small JSON shapes the page consumes. Nothing here decides policy.
 import { Catalog, dayFor, validateTimeZone } from './catalog.mjs';
+import { isMetaAction } from '../usage.mjs';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const CURSOR = /^v1:(\d+):(.+)$/;
-const isAction = (entry) => entry.action !== 'llm.session';
+const isAction = (entry) => !isMetaAction(entry);
 const matches = (row, filters) => {
   if (filters.minute !== undefined) {
     const [hour, minute] = row[1].split(':').map(Number);

@@ -2,6 +2,7 @@
 // attempts, so every entry stays in the history even when it was refused: that is
 // what makes an observe-mode run replayable.
 import { decide } from './decide.mjs';
+import { isRunAction } from './ledger.mjs';
 import { argsHashOf, deniedCapabilities } from './rules.mjs';
 
 export const proposalOf = (entry) => ({
@@ -9,6 +10,7 @@ export const proposalOf = (entry) => ({
   subject: entry.subject,
   amount: entry.amount,
   task: entry.task,
+  run_id: entry.run_id,
   trust: entry.trust,
   capability: entry.capability,
   args_hash: argsHashOf(entry),
@@ -80,7 +82,7 @@ export function replay(entries, { policy, rules }) {
     const key = entry.task ?? null;
     const history = histories.get(key) ?? [];
     const from = { decision: entry.decision, code: entry.code };
-    if (entry.control) {
+    if (entry.control || isRunAction(entry)) {
       summary.unchanged += 1;
       history.push(entry);
       histories.set(key, history);
@@ -92,7 +94,10 @@ export function replay(entries, { policy, rules }) {
       summary.unenforceable_rows.push({ seq: entry.seq, reasons });
     } else {
       const to = decide({ policy, rules, history, proposal: proposalOf(entry), now: new Date(entry.at) });
-      if (to.decision === from.decision && to.code === from.code) {
+      // The code explains why an action was allowed or refused; a different
+      // allow code is not a changed verdict. Usage rows, for example, are
+      // recorded ALLOWED and the policy reports ALLOW for the same decision.
+      if (to.decision === from.decision) {
         summary.unchanged += 1;
       } else {
         if (from.decision === 'ALLOW' && to.decision === 'DENY') summary.newly_denied += 1;

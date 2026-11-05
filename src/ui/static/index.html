@@ -62,6 +62,7 @@
   .agent-kv{border-top:1px solid var(--line);padding-top:6px;min-width:0}
   .agent-kv span{display:block;color:var(--muted);font:9px var(--mono);margin-bottom:3px}
   .agent-kv b{display:block;font:10px var(--mono);font-weight:500;overflow-wrap:anywhere;white-space:normal;line-height:1.35}
+  .agent-kv.wide{grid-column:1/-1}
   .agent-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .agent-modes{display:inline-flex;border:1px solid var(--line)}
   .agent-modes button{border:0;border-right:1px solid var(--line);background:#fff;color:var(--body);padding:6px 9px;font:10px var(--mono);cursor:pointer}
@@ -182,6 +183,11 @@
   .fp-actions button.on[data-state="deny"]{background:var(--deny-bg);border-color:var(--deny-line);color:var(--deny);font-weight:600}
   .fp-actions button.on[data-state="ask"]{background:var(--ask-bg);border-color:var(--ask-line);color:var(--ask);font-weight:600}
   .fp-note{color:var(--muted);font-size:10px;line-height:1.5;margin:9px 0 0}
+  .fp-detail{margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
+  .fp-detail-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--muted);font:9px var(--mono);text-transform:uppercase;letter-spacing:.04em}
+  .fp-detail-summary{margin:6px 0 7px;color:var(--ink);font:11px/1.45 var(--mono);word-break:break-word}
+  .fp-detail-grid{grid-template-columns:88px 1fr;margin-top:0;border-top:0;padding-top:0}
+  .fp-detail-grid .fp-v{white-space:normal;word-break:break-word;font-size:9px;line-height:1.4}
   .fp-scope{color:var(--muted);font:9px var(--mono);margin-top:8px}
   .fp-scope label{display:flex;align-items:center;gap:5px;cursor:pointer}
   .fp-scope input{accent-color:var(--ink)}
@@ -447,7 +453,7 @@
   const el = (id) => document.getElementById(id);
   // All ledger fields are escaped below; the data is local and not
   // attacker-controlled, but escaping keeps the DOM contract explicit.
-  const esc = (value) => String(value ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt = (n) => Number(n || 0).toLocaleString('en-US');
   const compact = (n) => {
     const value = Number(n || 0);
@@ -545,6 +551,7 @@
   let callsHour = '';
   let selectedSeq = null;
   let selectedMarker = null;
+  let pendingLive = false;
   let drafts = new Map();
   let bySeq = new Map();
   let bucketRows = new Map();
@@ -664,7 +671,16 @@
       initialHead = Math.max(initialHead, Number(payload.seq || 0));
       summaryCache.delete(day);
       flowCache.delete(day);
-      if (day === selectedDay) renderDay(day); else renderDayStrip();
+      if (day === selectedDay) {
+        if (selectedSeq) {
+          pendingLive = true;
+          renderDayStrip();
+        } else {
+          renderDay(day);
+        }
+      } else {
+        renderDayStrip();
+      }
       return;
     }
     if (!calls[day]) {
@@ -752,14 +768,38 @@
       : 'Wire a local hook first, then choose how much Bounds may block.';
     const state = el('agent-state');
     state.replaceChildren();
-    for (const [label, value, title] of [
+    const budget = agentData.budget;
+    const limits = [];
+    if (budget && budget.tokens) limits.push(Number(budget.tokens).toLocaleString('en-US') + ' tokens');
+    if (budget && budget.usd) limits.push('$' + budget.usd);
+    const budgetValue = budget && budget.error
+      ? 'rules unreadable'
+      : limits.length
+        ? limits.join(' or ') + (budget.enforce ? ' - enforced' : ' - observe')
+        : 'not set';
+    const run = agentData.run;
+    const runValue = run && run.error
+      ? 'unreadable'
+      : run
+        ? (run.goal ? run.goal : run.id) + ' - since ' + new Date(run.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : 'none';
+    const last = agentData.last;
+    const lastValue = last && last.error
+      ? 'unreadable'
+      : last
+        ? last.outcome + (last.goal ? ' - ' + last.goal : '') + (last.note ? ' (' + last.note + ')' : '')
+        : 'none';
+    for (const [label, value, title, wide] of [
       ['Status', status, ''],
       ['Mode', mode, ''],
       ['Wired', wired, wired],
       ['Ledger', ledger, ledger],
+      ['Active run', runValue, runValue, true],
+      ['Last run', lastValue, lastValue, true],
+      ['Run budget', budgetValue, budgetValue, true],
     ]) {
       const item = document.createElement('div');
-      item.className = 'agent-kv';
+      item.className = wide ? 'agent-kv wide' : 'agent-kv';
       const key = document.createElement('span');
       key.textContent = label;
       const val = document.createElement('b');
@@ -1084,7 +1124,7 @@
     } else {
       scroller.scrollLeft = Math.max(0, (preserveCenter / 1440) * width - scroller.clientWidth / 2);
     }
-    closePopover();
+    closePopover(false);
     applyFlowFilter();
     renderTokens(day);
     updateExportDraft();
@@ -1173,7 +1213,7 @@
     } else {
       scroller.scrollLeft = Math.max(0, (preserveCenter / 1440) * width - scroller.clientWidth / 2);
     }
-    closePopover();
+    closePopover(false);
     applyFlowFilter();
     renderTokens(day);
     updateExportDraft();
@@ -1193,7 +1233,7 @@
       if (show) visible += Number(marker.dataset.count || 0);
     }
     el('flow-count').textContent = fmt(visible) + ' / ' + fmt(v1 ? currentCalls : currentRows.length) + ' calls';
-    if (selectedMarker && selectedMarker.hidden) closePopover();
+    if (selectedMarker && selectedMarker.hidden) closePopover(false);
   }
 
   async function loadUsage(day) {
@@ -1233,7 +1273,7 @@
     el('token-label').textContent = 'Measured task tokens';
   }
 
-  function closePopover() {
+  function closePopover(refresh = true) {
     if (selectedMarker) selectedMarker.classList.remove('selected');
     selectedMarker = null;
     selectedSeq = null;
@@ -1241,6 +1281,10 @@
     if (popover) {
       popover.hidden = true;
       popover.replaceChildren();
+    }
+    if (pendingLive) {
+      pendingLive = false;
+      if (refresh) renderDay(selectedDay);
     }
   }
 
@@ -1270,10 +1314,13 @@
     row[7] = selectedDay;
     bySeq.set(String(seq), row);
     const minute = Math.floor(minuteOf(row[1]) / 5) * 5;
-    const marker = [...document.querySelectorAll('.fm')].find(
+    const marker = markerBySeq.get(String(seq)) ?? [...document.querySelectorAll('.fm')].find(
       (candidate) => candidate.dataset.minute === String(minute) && candidate.dataset.capability === row[3],
     );
-    if (!marker || marker.hidden) return;
+    if (!marker || marker.hidden) {
+      await openPopover(seq, null);
+      return;
+    }
     marker.scrollIntoView({ block: 'nearest', inline: 'center' });
     await openPopover(seq, marker);
   }
@@ -1405,7 +1452,7 @@
       openPopover(rows[0][0], marker);
       return;
     }
-    closePopover();
+    closePopover(false);
     selectedMarker = marker;
     marker.classList.add('selected');
     const denied = rows.filter((row) => row[4] === 'DENY').length;
@@ -1440,11 +1487,54 @@
     positionPopover(marker, popover);
   }
 
+  // Dynamic values are escaped with esc(); this is the same local record the
+  // page already renders, never a remote string.
+  async function loadDetail(seq) {
+    const box = el('fp-detail');
+    if (!box) return;
+    const head = '<div class="fp-detail-head">What was attempted <span>local only</span></div>';
+    box.innerHTML = head + '<p class="fp-note">Loading preview...</p>';
+    try {
+      const response = await fetch('/api/v1/detail?seq=' + encodeURIComponent(seq), { cache: 'no-store', headers: AUTH });
+      const body = await response.json();
+      if (selectedSeq !== String(seq)) return;
+      const current = el('fp-detail');
+      if (!current) return;
+      if (!response.ok) throw new Error(body.error || 'preview ' + response.status);
+      if (body.state !== 'verified') {
+        const labels = {
+          none: 'No preview recorded for this decision.',
+          missing: 'Preview missing; the signed entry is unchanged.',
+          changed: 'Preview changed; it no longer matches the signed hash.',
+        };
+        current.innerHTML = head + '<p class="fp-note">' + esc(labels[body.state] || body.state) + (body.reason ? ' ' + esc(body.reason) : '') + '</p>';
+        if (selectedMarker) positionPopover(selectedMarker, el('flow-popover'));
+        return;
+      }
+      const detail = body.detail;
+      const fields = Object.entries(detail.fields).map(([key, value]) => '<div><span class="fp-k">' + esc(key) + '</span><span class="fp-v">' + esc(String(value)) + '</span></div>').join('');
+      const redacted = detail.redactions.length
+        ? '<p class="fp-note">Redacted: ' + esc(detail.redactions.map((item) => item.field + '(' + item.kind + ')').join(', ')) + '</p>'
+        : '';
+      const truncated = detail.truncated.fields ? '<p class="fp-note">Preview truncated.</p>' : '';
+      current.innerHTML = head +
+        '<div class="fp-detail-summary">' + esc(detail.summary) + '</div>' +
+        (fields ? '<div class="fp-grid fp-detail-grid">' + fields + '</div>' : '') +
+        redacted + truncated +
+        '<p class="fp-note">Redacted before storage. Never synced.</p>';
+      if (selectedMarker) positionPopover(selectedMarker, el('flow-popover'));
+    } catch (error) {
+      if (selectedSeq !== String(seq)) return;
+      const current = el('fp-detail');
+      if (current) current.innerHTML = head + '<p class="fp-note">Preview unavailable: ' + esc(error.message) + '</p>';
+    }
+  }
+
   function openPopover(seq, marker = null) {
     const row = bySeq.get(String(seq));
     if (!row) return;
     const groupMarker = marker || markerBySeq.get(String(seq));
-    closePopover();
+    closePopover(false);
     selectedSeq = String(seq);
     selectedMarker = groupMarker || null;
     if (selectedMarker) selectedMarker.classList.add('selected');
@@ -1462,6 +1552,7 @@
         '<div><span class="fp-k">block</span><span class="fp-v">' + blockRows.length + ' calls</span></div>' +
         '<div><span class="fp-k">path</span><span class="fp-v">not recorded</span></div>' +
       '</div>' +
+      '<div class="fp-detail" id="fp-detail"><div class="fp-detail-head">What was attempted <span>local only</span></div><p class="fp-note">Loading preview...</p></div>' +
       '<div class="fp-actions"><button type="button" data-state="allow">Allow</button><button type="button" data-state="ask">Ask</button><button type="button" data-state="deny">Deny</button><span class="fp-draft">draft</span></div>' +
       (blockRows.length > 1 ? '<div class="fp-scope"><label><input type="checkbox" id="fp-all"> apply to all ' + blockRows.length + ' calls in this block</label></div>' : '') +
       '<p class="fp-note">Draft only. The policy file stays local; export produces the diff.</p>';
@@ -1472,6 +1563,11 @@
     }
     popover.querySelector('.fp-close').addEventListener('click', (event) => { event.stopPropagation(); closePopover(); });
     if (selectedMarker) positionPopover(selectedMarker, popover);
+    else {
+      popover.style.left = '8px';
+      popover.style.top = '8px';
+    }
+    loadDetail(seq);
   }
 
   function updateMarkerDraft(marker) {
@@ -1554,7 +1650,7 @@
     selectedDay = day;
     callsDay = day;
     callsPage = 0;
-    closePopover();
+    closePopover(false);
     if (v1) {
       try {
         if (!summaryCache.has(day) || !flowCache.has(day)) await loadDay(day);

@@ -8,7 +8,8 @@ import test from 'node:test';
 import { loadTools } from '../src/classify.mjs';
 import { bundleFor, verifyBundle } from '../src/bundle.mjs';
 import { pinManifest } from '../src/toolpin.mjs';
-import { readEntries, writeMcpManifest, writeToolLock } from '../src/store.mjs';
+import { readDetail, readEntries, writeMcpManifest, writeToolLock } from '../src/store.mjs';
+import { verifyDetail } from '../src/detail.mjs';
 import { initWorkspace, tempDir } from './helpers.mjs';
 
 const proxy = fileURLToPath(new URL('../src/mcp-proxy.mjs', import.meta.url));
@@ -190,7 +191,12 @@ test('a modern 2026-07-28 client pins the server, tools, prompts and resources',
     assert.equal(resources.result.resources[0].uri, 'file:///notes.txt');
     const called = await pinnedCall(client);
     assert.equal(called.result.content[0].text, 'ok');
-    assert.equal(readEntries(dir).at(-1).decision, 'ALLOW');
+    const entry = readEntries(dir).at(-1);
+    assert.equal(entry.decision, 'ALLOW');
+    assert.match(entry.detail_hash, /^[a-f0-9]{64}$/);
+    const detail = readDetail(dir, entry.seq);
+    assert.equal(detail.summary, 'notes.txt');
+    assert.deepEqual(verifyDetail(entry, detail), { ok: true });
   } finally {
     client.close();
   }

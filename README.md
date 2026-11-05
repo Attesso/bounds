@@ -299,6 +299,49 @@ npx attesso log --action mail.send  --subject partner@example.com  --task job-2 
 
 Balanced blocks the outbound boundary and duplicate fetches; it leaves local edits and commands alone. For an untrusted environment where a shell command itself can exfiltrate, `init --profile strict` adds `write` and `execute` to the deny list. An existing ledger can adopt either shipped profile with `attesso rules set-profile balanced|strict`; the previous file is kept as `rules.json.bak`.
 
+Any rule can set `"enforce": true`. In observe mode that rule alone blocks; every other rule keeps recording. Use it to turn on one rule you have replayed and accepted without turning the whole gate on.
+
+A rule can cap a whole run. `max_tokens` sums the measured input and output tokens reported for the task; `max_cost_usd` sums the recorded cost. The check runs on the next tool call, so a usage report is never blocked:
+
+```json
+{ "id": "run-budget", "max_tokens": 200000, "max_cost_usd": 0.5,
+  "deny": { "capabilities": ["execute", "write", "send"] }, "enforce": true }
+```
+
+`max_tokens` is exact when the recorder reports usage; `max_cost_usd` only fires when the reported cost is above zero.
+
+```sh
+npx attesso budget --tokens 200000 --usd 0.50 --enforce
+# budget: 200,000 tokens or $0.5 USD per run (enforced)
+```
+
+A budget is only meaningful with a run boundary. `run start` opens a run, `run end` closes it, and the budget sums the usage recorded under the active run:
+
+```sh
+npx attesso run start --goal "fix the failing test"
+npx attesso run status
+npx attesso budget --tokens 200000 --enforce
+npx attesso run end --outcome success --note "the test passes"
+```
+
+`run status` prints the active run, or the last one. `run end` records `success`, `failed`, `abandoned` or `unknown` and an optional note. Both markers are signed entries but not decisions: counts, usage, the flow and the hosted sync leave them out.
+
+Without an active run, a budget falls back to the task id, which can span a long conversation.
+
+### Local action detail
+
+Every tool call from the hook, the `serve` protocol or the MCP proxy records a small preview beside the signed entry: command, path, URL, query, recipient and argument key names. File contents, message bodies and patch text are not stored. Secrets are redacted before the file is written.
+
+```sh
+npx attesso detail 123
+npx attesso detail 123 --json
+npx attesso verify --details
+```
+
+The preview lives under `.attesso/details/`, is readable only by the local user and is never synced or included in a bundle or packet. Deleting it with `npx attesso detail 123 --delete` leaves the signed entry valid. The local page shows the same preview when you select a call in the flow or the table.
+
+`detail --json` names `verified`, `none`, `missing`, `changed` or `unavailable`, and exits 2 for the last three. `verify --details` exits 2 when a preview changed. A preview is `verified` only when the entry signature and the preview hash both verify.
+
 File tools can also be scoped by `paths.json`. Shell and execute tools remain
 unscoped by default. A deployment that wants the hook to refuse every execute
 capability can set `"shell_scope": "deny"` in `paths.json`; that is a denial,

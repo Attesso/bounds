@@ -3,9 +3,9 @@
 // tokens and money the task spent. Costs come from a llm.session entry the
 // recorder writes, never from an estimate the report invents.
 import { paths, readKey, readState } from './store.mjs';
+import { isRunAction } from './ledger.mjs';
+import { isMetaAction, normalizeUsage } from './usage.mjs';
 import { forEachEntry } from './stream.mjs';
-
-const isSpend = (entry) => entry.action === 'llm.session';
 
 const emptyGroup = () => ({
   actions: 0,
@@ -15,15 +15,23 @@ const emptyGroup = () => ({
   cached_tokens: 0,
   cost_usd: 0,
   api_calls: 0,
+  invalid: 0,
 });
 
 const add = (group, entry) => {
-  const meta = entry.meta ?? {};
-  group.tokens += Number(meta.tokens) || 0;
-  group.cached_tokens += Number(meta.cached_tokens) || 0;
-  group.cost_usd += Number(meta.cost_usd) || 0;
-  group.api_calls += Number(meta.api_calls) || 0;
-  if (isSpend(entry)) return;
+  let usage = null;
+  try {
+    usage = normalizeUsage(entry);
+  } catch {
+    group.invalid += 1;
+  }
+  if (usage) {
+    group.tokens += usage.tokens;
+    group.cached_tokens += usage.cached_tokens;
+    group.cost_usd += usage.cost_usd;
+    group.api_calls += usage.api_calls > 0 ? usage.api_calls : (entry.action === 'llm.session' ? 1 : 0);
+  }
+  if (isMetaAction(entry)) return;
   group.actions += 1;
   if (entry.decision === 'ALLOW') return;
   group.blocked += 1;
@@ -44,6 +52,7 @@ function finish(group) {
     cached_tokens: group.cached_tokens,
     cost_usd: Number(group.cost_usd.toFixed(6)),
     api_calls: group.api_calls,
+    invalid: group.invalid,
   };
 }
 
@@ -64,6 +73,7 @@ export function buildReport(dir) {
   const all = emptyGroup();
   for (const entry of entries) {
     add(all, entry);
+    if (isRunAction(entry)) continue;
     const task = entry.task ?? '(unscoped)';
     if (!groups.has(task)) groups.set(task, emptyGroup());
     add(groups.get(task), entry);
@@ -79,6 +89,7 @@ export async function buildReportStream(dir) {
   await forEachEntry(paths(dir).ledger, (entry) => {
     count += 1;
     add(all, entry);
+    if (isRunAction(entry)) return;
     const task = entry.task ?? '(unscoped)';
     if (!groups.has(task)) groups.set(task, emptyGroup());
     add(groups.get(task), entry);
@@ -90,10 +101,11 @@ const percent = (share) => (share === null ? 'n/a' : `${Math.round(share * 100)}
 
 export function renderReport(report) {
   const lines = [];
+  const invalid = report.totals.invalid > 0 ? `, ${report.totals.invalid} invalid usage` : '';
   lines.push(
     `${report.entries} entries, key ${report.key}: ${report.totals.actions} actions, ` +
       `${report.totals.blocked} refused (${percent(report.totals.blocked_share)}), ` +
-      `${report.totals.tokens.toLocaleString('en-US')} tokens, ${report.totals.cost_usd.toFixed(4)} USD`,
+      `${report.totals.tokens.toLocaleString('en-US')} tokens, ${report.totals.cost_usd.toFixed(4)} USD${invalid}`,
   );
   lines.push('');
   const rows = report.tasks.map((task) => ({

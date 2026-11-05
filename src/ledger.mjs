@@ -6,6 +6,8 @@ import { createHash, generateKeyPairSync, sign, verify } from 'node:crypto';
 import { canonical } from './canonical.mjs';
 
 export const ENTRY_VERSION = 1;
+export const RUN_ACTIONS = new Set(['run.start', 'run.end']);
+export const isRunAction = (entry) => RUN_ACTIONS.has(entry?.action);
 
 export function newSigningKey() {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -52,13 +54,16 @@ export function buildEntry({
   amount,
   meta,
   task,
+  runId,
   trust,
   capability,
   decision,
   code,
   rule,
   taintedBy,
+  enforce,
   argsHash,
+  detailHash,
   policyDigest,
   rulesDigest,
   toolsDigest,
@@ -83,11 +88,14 @@ export function buildEntry({
   };
   if (amount) entry.amount = amount;
   if (task) entry.task = task;
+  if (runId) entry.run_id = runId;
   if (trust) entry.trust = trust;
   if (capability) entry.capability = capability;
   if (rule) entry.rule = rule;
   if (taintedBy !== undefined) entry.tainted_by = taintedBy;
+  if (enforce === true) entry.enforce = true;
   if (argsHash) entry.args_hash = argsHash;
+  if (detailHash) entry.detail_hash = detailHash;
   if (rulesDigest) entry.rules_digest = rulesDigest;
   if (toolsDigest) entry.tools_digest = toolsDigest;
   if (toolHash) entry.tool_hash = toolHash;

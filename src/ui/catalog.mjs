@@ -232,8 +232,7 @@ export class Catalog {
       if (at < start) return;
       if (at >= end) return false;
       if (dayFor(entry.at, timeZone) !== day) return;
-      onEntry(entry, startOffset, endOffset);
-      return undefined;
+      return onEntry(entry, startOffset, endOffset);
     }, { startOffset: this.startFor(start) });
   }
 

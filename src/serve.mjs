@@ -26,7 +26,8 @@ export function serve(dir, { observe = false, input = process.stdin, output = pr
     }
     let entry;
     try {
-      entry = append(dir, request);
+      const { tool_input, ...fields } = request;
+      entry = append(dir, { ...fields, detail_input: tool_input });
     } catch (error) {
       // Never answer with a policy verdict when the record could not be written:
       // an unwritable ledger is an outage, not a decision.
@@ -43,7 +44,7 @@ export function serve(dir, { observe = false, input = process.stdin, output = pr
             ? entry.rule
             : `${entry.rule} (tainted by step #${entry.tainted_by})`
           : null,
-        enforced: entry.decision === 'ALLOW' || observe ? false : true,
+        enforced: entry.decision !== 'ALLOW' && (!observe || entry.enforce === true),
         seq: entry.seq,
       })}\n`,
     );

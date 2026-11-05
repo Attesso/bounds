@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { evaluatePath, validateRules } from '../src/rules.mjs';
-import { append, init, paths, readState } from '../src/store.mjs';
+import { append, appendUsage, init, paths, readState } from '../src/store.mjs';
 import { verifyChain } from '../src/ledger.mjs';
 
 const rules = validateRules({
@@ -16,6 +16,15 @@ const rules = validateRules({
 
 const entry = (seq, trust, capability, at = '2026-10-31T12:00:00Z') => ({ seq, trust, capability, at });
 
+const usageEntry = (seq, input, output, cost = 0, runId) => ({
+  seq,
+  action: 'llm.session',
+  capability: 'model',
+  at: '2026-10-31T12:00:00Z',
+  ...(runId ? { run_id: runId } : {}),
+  meta: { usage: { input_tokens: input, output_tokens: output, cached_tokens: 0, cost_usd: cost } },
+});
+
 test('a rule needs a deny and a path condition', () => {
   assert.throws(() => validateRules({ version: 1 }), /rules must be a list/);
   assert.throws(() => validateRules({ version: 1, rules: [{ id: 'a', if_path: { trust: 'untrusted' } }] }), /denies nothing/);
@@ -24,6 +33,83 @@ test('a rule needs a deny and a path condition', () => {
     /unknown capability delete/,
   );
   assert.throws(() => validateRules({ version: 1, rules: [{ id: 'a', deny: { capability: 'send' }, if_path: {} }] }), /no path condition/);
+  assert.throws(
+    () => validateRules({ version: 1, rules: [{ id: 'a', deny: { capability: 'send' }, if_path: { trust: 'untrusted' }, enforce: 'yes' }] }),
+    /boolean enforce/,
+  );
+});
+
+test('an enforced rule says so in its verdict', () => {
+  const enforced = validateRules({
+    version: 1,
+    rules: [{ id: 'enforced', deny: { capability: 'send' }, if_path: { trust: 'untrusted', capability: 'read' }, enforce: true }],
+  });
+  assert.deepEqual(
+    evaluatePath(enforced, [entry(1, 'untrusted', 'read')], { capability: 'send' }),
+    { decision: 'DENY', code: 'PATH_DENIED', rule: 'enforced', tainted_by: 1, enforce: true },
+  );
+});
+
+test('a run budget needs a positive ceiling', () => {
+  assert.throws(
+    () => validateRules({ version: 1, rules: [{ id: 'b', max_tokens: 0, deny: { capabilities: ['execute'] } }] }),
+    /max_tokens of at least 1/,
+  );
+  assert.throws(
+    () => validateRules({ version: 1, rules: [{ id: 'b', max_cost_usd: -1, deny: { capabilities: ['execute'] } }] }),
+    /positive max_cost_usd/,
+  );
+});
+
+test('a run budget blocks the next execute at the ceiling and not before', () => {
+  const budget = validateRules({
+    version: 1,
+    rules: [{ id: 'run-budget', max_tokens: 200000, deny: { capabilities: ['execute'] } }],
+  });
+  assert.equal(evaluatePath(budget, [usageEntry(1, 100000, 99999)], { capability: 'execute' }), null);
+  assert.deepEqual(
+    evaluatePath(budget, [usageEntry(1, 100000, 100000)], { capability: 'execute' }),
+    { decision: 'DENY', code: 'BUDGET_EXCEEDED', rule: 'run-budget' },
+  );
+});
+
+test('a run budget sums only the active run and falls back to the task without one', () => {
+  const budget = validateRules({
+    version: 1,
+    rules: [{ id: 'run-budget', max_tokens: 1000, deny: { capabilities: ['execute'] } }],
+  });
+  const history = [usageEntry(1, 600, 600, 0, 'run_a')];
+  assert.equal(evaluatePath(budget, history, { capability: 'execute', run_id: 'run_a' })?.code, 'BUDGET_EXCEEDED');
+  assert.equal(evaluatePath(budget, history, { capability: 'execute', run_id: 'run_b' }), null);
+  assert.equal(evaluatePath(budget, history, { capability: 'execute' })?.code, 'BUDGET_EXCEEDED');
+});
+
+test('a run budget can count recorded cost', () => {
+  const budget = validateRules({
+    version: 1,
+    rules: [{ id: 'run-budget', max_cost_usd: 0.5, deny: { capabilities: ['execute'] } }],
+  });
+  assert.equal(evaluatePath(budget, [usageEntry(1, 0, 0, 0.49)], { capability: 'execute' }), null);
+  assert.equal(evaluatePath(budget, [usageEntry(1, 0, 0, 0.5)], { capability: 'execute' })?.code, 'BUDGET_EXCEEDED');
+});
+
+test('a run budget without usage does not fire', () => {
+  const budget = validateRules({
+    version: 1,
+    rules: [{ id: 'run-budget', max_tokens: 200000, deny: { capabilities: ['execute'] } }],
+  });
+  assert.equal(evaluatePath(budget, [], { capability: 'execute' }), null);
+});
+
+test('an enforced run budget says so in its verdict', () => {
+  const budget = validateRules({
+    version: 1,
+    rules: [{ id: 'run-budget', max_tokens: 1000, deny: { capabilities: ['execute'] }, enforce: true }],
+  });
+  assert.deepEqual(
+    evaluatePath(budget, [usageEntry(1, 600, 600)], { capability: 'execute' }),
+    { decision: 'DENY', code: 'BUDGET_EXCEEDED', rule: 'run-budget', enforce: true },
+  );
 });
 
 test('an untrusted read blocks a later send and names the step', () => {
@@ -73,6 +159,21 @@ test('another task is judged on its own path', () => {
   append(dir, { action: 'web.read', capability: 'read', trust: 'untrusted', task: 'task-1' });
   const other = append(dir, { action: 'mail.send', capability: 'send', task: 'task-2' });
   assert.equal(other.decision, 'ALLOW');
+});
+
+test('a run budget sums only its own task and blocks the next execute', () => {
+  const dir = workspace();
+  writeFileSync(paths(dir).rules, JSON.stringify({
+    version: 1,
+    rules: [{ id: 'run-budget', max_tokens: 200000, deny: { capabilities: ['execute'] } }],
+  }));
+  appendUsage(dir, { task: 'task-a', inputTokens: 150000, outputTokens: 60000 });
+  const blocked = append(dir, { action: 'shell.execute', capability: 'execute', task: 'task-a' });
+  assert.equal(blocked.code, 'BUDGET_EXCEEDED');
+  const other = append(dir, { action: 'shell.execute', capability: 'execute', task: 'task-b' });
+  assert.equal(other.decision, 'ALLOW');
+  const state = readState(dir);
+  assert.equal(verifyChain(state.entries, state.key.public, state.config.head).ok, true);
 });
 
 test('an internal read leaves the send allowed in the same task', () => {

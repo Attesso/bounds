@@ -1,11 +1,15 @@
 // Usage is reported by the agent or the recorder, never inferred from a tool
 // proposal. The page may show exact call counts without usage; it must not
 // convert task totals into a per-call saving.
+import { isRunAction } from './ledger.mjs';
+
 const numeric = (value, field) => {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) throw new Error(`usage.${field} must be a non-negative number`);
   return number;
 };
+
+export const isMetaAction = (entry) => entry.action === 'llm.session' || isRunAction(entry);
 
 export function normalizeUsage(entry) {
   const meta = entry.meta ?? {};
@@ -39,6 +43,7 @@ export function usageForDay(catalog, { day, timeZone }) {
   const tasks = new Map();
   let invalid = 0;
   catalog.scanDay(day, timeZone, (entry) => {
+    if (isRunAction(entry)) return;
     const task = entry.task ?? '(unscoped)';
     const item = tasks.get(task) ?? {
       task, calls: 0, blocked: 0, tokens: 0, cached_tokens: 0,

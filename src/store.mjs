@@ -5,9 +5,10 @@
 //   config.json  the recorded head (count + hash), the only thing that makes a
 //                truncated log visible
 //   lock         held while appending, so two agents cannot interleave writes
+//   details/     local action previews, never synced
 import { randomBytes } from 'node:crypto';
 import { channel } from 'node:diagnostics_channel';
-import { closeSync, existsSync, fsyncSync, ftruncateSync, linkSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, chmodSync, existsSync, fsyncSync, ftruncateSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { buildEntry, entryHash, newSigningKey, signEntry, verifyEntry, verifyHead, verifyStep } from './ledger.mjs';
 import { DEFAULT_TOOLS, loadTools } from './classify.mjs';
@@ -17,6 +18,7 @@ import { policyDigest, validatePolicy } from './policy.mjs';
 import { rulesDigest, rulesForProfile, validateRules } from './rules.mjs';
 import { toolGate, manifestDigest, toolsDigest } from './toolpin.mjs';
 import { evaluatePathScope, validatePathsConfig } from './fs-paths.mjs';
+import { captureDetail, MAX_DETAIL_BYTES } from './detail.mjs';
 import { forEachEntry, forEachEntrySync } from './stream.mjs';
 
 export function paths(dir) {
@@ -29,6 +31,8 @@ export function paths(dir) {
     uiIndex: join(dir, 'ui-index.json'),
     ledger: join(dir, 'ledger.jsonl'),
     config: join(dir, 'config.json'),
+    run: join(dir, 'run.json'),
+    details: join(dir, 'details'),
     lock: join(dir, 'lock'),
     policies: join(dir, 'policies'),
     tools: join(dir, 'tools.json'),
@@ -211,6 +215,107 @@ export function readConfig(dir) {
   return readJson(paths(dir).config);
 }
 
+// The active run is a small state file beside the ledger, like the mode file:
+// a per-call hook can read it without scanning the log. The signed run.start
+// and run.end entries remain the record.
+export function readActiveRun(dir) {
+  const file = paths(dir).run;
+  if (!existsSync(file)) return null;
+  const value = readJson(file);
+  if (
+    value === null
+    || typeof value !== 'object'
+    || value.version !== 1
+    || typeof value.id !== 'string'
+    || value.id === ''
+    || typeof value.started_at !== 'string'
+    || value.started_at === ''
+  ) {
+    throw new Error('run.json is malformed');
+  }
+  return value;
+}
+
+export function writeActiveRun(dir, value) {
+  writeJson(paths(dir).run, value);
+}
+
+export function clearActiveRun(dir) {
+  try {
+    unlinkSync(paths(dir).run);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
+// The detail is a local sidecar keyed by the signed entry's sequence. The
+// signed entry carries its hash; this store never syncs or bundles the file.
+export function writeDetail(dir, seq, detail) {
+  if (!Number.isInteger(seq) || seq < 1) throw new Error('detail seq must be a positive integer');
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail) || detail.seq !== seq) {
+    throw new Error('detail does not match its sequence');
+  }
+  const folder = paths(dir).details;
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  try {
+    chmodSync(folder, 0o700);
+  } catch {
+    // A store on a filesystem without POSIX modes still works; the file mode
+    // below is the strongest guarantee that filesystem can give.
+  }
+  const file = join(folder, `${seq}.json`);
+  const temp = join(folder, `.tmp-${process.pid}-${randomBytes(8).toString('hex')}`);
+  try {
+    writeFileSync(temp, `${JSON.stringify(detail, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+    renameSync(temp, file);
+  } catch (error) {
+    try {
+      unlinkSync(temp);
+    } catch {
+      // The temp file may never have been created; the write error is the
+      // error the caller needs.
+    }
+    throw error;
+  }
+  return file;
+}
+
+export function readDetail(dir, seq) {
+  if (!Number.isInteger(seq) || seq < 1) throw new Error('detail seq must be a positive integer');
+  const file = join(paths(dir).details, `${seq}.json`);
+  let stats;
+  try {
+    stats = lstatSync(file);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  if (stats.isSymbolicLink() || !stats.isFile() || stats.size > MAX_DETAIL_BYTES * 4) {
+    throw new Error('detail file is not a small regular file');
+  }
+  const raw = readFileSync(file, 'utf8');
+  const detail = JSON.parse(raw);
+  // The writer emits this exact form. A hand-edited file, including one with a
+  // duplicate key that JSON.parse would collapse, is not the file that was
+  // hashed, so it is refused instead of silently reinterpreted.
+  if (JSON.stringify(detail, null, 2) !== raw.trimEnd()) {
+    throw new Error('detail file is not in its written form');
+  }
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail) || detail.seq !== seq) {
+    throw new Error('detail file does not match its sequence');
+  }
+  return detail;
+}
+
+export function deleteDetail(dir, seq) {
+  if (!Number.isInteger(seq) || seq < 1) throw new Error('detail seq must be a positive integer');
+  try {
+    unlinkSync(join(paths(dir).details, `${seq}.json`));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
 export function readSnapshot(dir, digest, kind = 'policy') {
   const file = snapshotFile(dir, digest, kind);
   if (!existsSync(file)) throw new Error(`SNAPSHOT_MISSING: ${kind} ${digest} was not archived with this entry`);
@@ -266,6 +371,74 @@ export function setRulesProfile(dir, profile = 'balanced') {
     writeJson(file.rules, next);
     return { profile, changed: true, previous: previousDigest, digest: nextDigest };
   });
+}
+
+// One rule, one file: a run budget is an ordinary rule, so replay, the digest
+// and the refusal all see exactly what the hook enforces.
+export function setRunBudget(dir, { tokens, usd, enforce = false, off = false } = {}) {
+  if (off && (tokens !== undefined || usd !== undefined)) {
+    throw new Error('--off takes no budget values');
+  }
+  if (tokens !== undefined && typeof tokens !== 'string' && typeof tokens !== 'number') {
+    throw new Error('--tokens needs a value');
+  }
+  if (usd !== undefined && typeof usd !== 'string' && typeof usd !== 'number') {
+    throw new Error('--usd needs a value');
+  }
+  const tokenLimit = tokens === undefined ? undefined : Number(tokens);
+  if (tokenLimit !== undefined && (!Number.isInteger(tokenLimit) || tokenLimit < 1)) {
+    throw new Error('--tokens must be a whole number of at least 1');
+  }
+  const usdLimit = usd === undefined ? undefined : Number(usd);
+  if (usdLimit !== undefined && (!Number.isFinite(usdLimit) || usdLimit <= 0)) {
+    throw new Error('--usd must be a positive number');
+  }
+  if (!off && tokenLimit === undefined && usdLimit === undefined) {
+    throw new Error('a budget needs --tokens or --usd');
+  }
+  return withLock(dir, () => {
+    const file = paths(dir);
+    const current = existsSync(file.rules)
+      ? JSON.parse(readFileSync(file.rules, 'utf8'))
+      : { version: 1, rules: [] };
+    if (!Array.isArray(current.rules)) throw new Error('rules.json has no rules list');
+    const others = current.rules.filter((rule) => rule.id !== 'run-budget');
+    let next;
+    if (off) {
+      next = { ...current, rules: others };
+    } else {
+      const rule = { id: 'run-budget', deny: { capabilities: ['execute', 'write', 'send'] } };
+      if (tokenLimit !== undefined) rule.max_tokens = tokenLimit;
+      if (usdLimit !== undefined) rule.max_cost_usd = usdLimit;
+      if (enforce) rule.enforce = true;
+      next = { ...current, rules: [rule, ...others] };
+    }
+    validateRules(next);
+    const previous = existsSync(file.rules) ? readFileSync(file.rules, 'utf8') : null;
+    const previousDigest = previous === null ? undefined : rulesDigest(JSON.parse(previous));
+    const nextDigest = rulesDigest(next);
+    if (previousDigest === nextDigest) {
+      return { changed: false, digest: nextDigest, rule: next.rules.find((rule) => rule.id === 'run-budget') };
+    }
+    if (previous !== null) renameSync(file.rules, `${file.rules}.bak`);
+    writeJson(file.rules, next);
+    return { changed: true, digest: nextDigest, rule: next.rules.find((rule) => rule.id === 'run-budget') };
+  });
+}
+
+// The page reads the same rule the hook enforces; no second budget store.
+export function readRunBudget(dir) {
+  const file = paths(dir);
+  if (!existsSync(file.rules)) return null;
+  const rules = JSON.parse(readFileSync(file.rules, 'utf8'));
+  validateRules(rules);
+  const rule = (rules.rules ?? []).find((item) => item.id === 'run-budget');
+  if (!rule) return null;
+  return {
+    tokens: Number.isInteger(rule.max_tokens) ? rule.max_tokens : null,
+    usd: typeof rule.max_cost_usd === 'number' ? rule.max_cost_usd : null,
+    enforce: rule.enforce === true,
+  };
 }
 
 export function readState(dir) {
@@ -336,7 +509,10 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-const LOCK_WAIT_MS = () => Number(process.env.ATTESSO_LOCK_WAIT_MS ?? 5000);
+// A burst of agents can queue behind one append. Five seconds dropped 78 of
+// 100 decisions in observe mode, silently; a minute records all of them and
+// still fails closed when the store is genuinely stuck.
+const LOCK_WAIT_MS = () => Number(process.env.ATTESSO_LOCK_WAIT_MS ?? 60000);
 const LOCK_RETRY_MS = 25;
 
 // Create the lock with its owner already inside, then link it into place. A
@@ -511,6 +687,8 @@ export function append(dir, proposal, { now = new Date(), control, verdict: forc
     const policy = validatePolicy(readJson(file.policy));
     const rules = existsSync(file.rules) ? validateRules(readJson(file.rules)) : null;
     const pathConfig = existsSync(file.fsPaths) ? validatePathsConfig(readJson(file.fsPaths)) : null;
+    const activeRun = readActiveRun(dir);
+    const runId = typeof proposal.run_id === 'string' && proposal.run_id !== '' ? proposal.run_id : activeRun?.id;
     const tools = loadTools(dir);
     const toolsHash = toolsDigest(tools);
     const toolLock = readToolLock(dir);
@@ -536,7 +714,8 @@ export function append(dir, proposal, { now = new Date(), control, verdict: forc
         }
       : null;
     const pathVerdict = pathConfig ? evaluatePathScope(pathConfig, proposal) : null;
-    const verdict = forcedVerdict ?? controlVerdict ?? toolVerdict ?? pathVerdict ?? decide({ policy, rules, history, proposal, now });
+    const decisionProposal = runId === undefined ? proposal : { ...proposal, run_id: runId };
+    const verdict = forcedVerdict ?? controlVerdict ?? toolVerdict ?? pathVerdict ?? decide({ policy, rules, history, proposal: decisionProposal, now });
     const toolPin = toolLock
       ? (toolVerdict?.tool_pin ?? (toolHash ? 'verified' : 'unverified'))
       : undefined;
@@ -544,6 +723,28 @@ export function append(dir, proposal, { now = new Date(), control, verdict: forc
     const argsHash = proposal.args_hash ?? meta.args_hash;
     delete meta.args_hash;
     const seq = head.count + 1;
+    const at = now.toISOString();
+    let detailHashValue;
+    let detailState;
+    if (proposal.detail_input !== undefined) {
+      try {
+        const captured = captureDetail({
+          seq,
+          at,
+          action: proposal.action,
+          tool: proposal.subject,
+          input: proposal.detail_input,
+        });
+        writeDetail(dir, seq, captured.detail);
+        detailHashValue = captured.hash;
+      } catch {
+        // The detail is the eyes, not the gate: a capture or write failure
+        // records the decision without a preview instead of blocking the call.
+        detailHashValue = undefined;
+        detailState = 'unavailable';
+      }
+    }
+    if (detailState !== undefined) meta.detail = detailState;
     const entry = buildEntry({
       seq,
       prev: head.hash,
@@ -552,13 +753,16 @@ export function append(dir, proposal, { now = new Date(), control, verdict: forc
       amount: proposal.amount,
       meta,
       task: proposal.task,
+      runId,
       trust: proposal.trust,
       capability: proposal.capability,
       decision: verdict.decision,
       code: verdict.code,
       rule: verdict.rule,
       taintedBy: verdict.tainted_by,
+      enforce: verdict.enforce,
       argsHash,
+      detailHash: detailHashValue,
       policyDigest: policyHash,
       rulesDigest: rulesHash,
       toolsDigest: toolsHash,
@@ -567,7 +771,7 @@ export function append(dir, proposal, { now = new Date(), control, verdict: forc
       mcpDigest,
       control,
       kid: key.kid,
-      at: now.toISOString(),
+      at,
     });
     entry.sig = signEntry(entry, key.private);
     writeSnapshot(dir, policyHash, policy);

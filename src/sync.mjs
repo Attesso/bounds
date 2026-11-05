@@ -3,7 +3,7 @@
 // advances a durable cursor after the server confirms the batch.
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { entryHash } from './ledger.mjs';
+import { entryHash, isRunAction } from './ledger.mjs';
 import { normalizeUsage } from './usage.mjs';
 import { forEachEntrySync } from './stream.mjs';
 import { paths, readKey } from './store.mjs';
@@ -92,6 +92,10 @@ export async function sync({
   forEachEntrySync(ledgerPath, (entry) => {
     if (entry.seq <= state.last_seq) return;
     if (entries.length + usage.length >= limit) return false;
+    if (isRunAction(entry)) {
+      lastSeq = entry.seq;
+      return;
+    }
     const reported = usageFromEntry(entry);
     if (reported) usage.push(reported);
     if (entry.action !== 'llm.session') {

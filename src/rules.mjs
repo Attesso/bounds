@@ -3,6 +3,7 @@
 // case no per-step check can catch, and it is the reason this file exists.
 import { createHash } from 'node:crypto';
 import { canonical } from './canonical.mjs';
+import { normalizeUsage } from './usage.mjs';
 
 export const CAPABILITIES = ['read', 'write', 'send', 'execute', 'spend'];
 export const RULE_PROFILES = ['balanced', 'strict'];
@@ -64,6 +65,9 @@ export function validateRules(rules) {
   if (!Array.isArray(rules.rules)) fail('rules must be a list');
   for (const rule of rules.rules) {
     if (typeof rule.id !== 'string' || rule.id === '') fail('every rule needs an id');
+    if (rule.enforce !== undefined && typeof rule.enforce !== 'boolean') {
+      fail(`rule ${rule.id} needs a boolean enforce`);
+    }
     const denies = deniedCapabilities(rule);
     if (denies.length === 0) fail(`rule ${rule.id} denies nothing`);
     for (const capability of denies) {
@@ -74,7 +78,8 @@ export function validateRules(rules) {
     if (trigger.capability && !CAPABILITIES.includes(trigger.capability)) {
       fail(`rule ${rule.id} triggers on unknown capability ${trigger.capability}`);
     }
-    const counts = rule.max_steps !== undefined || rule.max_repeats !== undefined;
+    const counts = rule.max_steps !== undefined || rule.max_repeats !== undefined
+      || rule.max_tokens !== undefined || rule.max_cost_usd !== undefined;
     if (!counts && trigger.trust === undefined && trigger.capability === undefined) {
       fail(`rule ${rule.id} has no path condition`);
     }
@@ -83,11 +88,46 @@ export function validateRules(rules) {
         fail(`rule ${rule.id} needs a whole ${field} of at least 1`);
       }
     }
+    if (rule.max_tokens !== undefined && (!Number.isInteger(rule.max_tokens) || rule.max_tokens < 1)) {
+      fail(`rule ${rule.id} needs a whole max_tokens of at least 1`);
+    }
+    if (rule.max_cost_usd !== undefined
+      && (typeof rule.max_cost_usd !== 'number' || !Number.isFinite(rule.max_cost_usd) || rule.max_cost_usd <= 0)) {
+      fail(`rule ${rule.id} needs a positive max_cost_usd`);
+    }
     if (trigger.within_minutes !== undefined && (!Number.isInteger(trigger.within_minutes) || trigger.within_minutes < 0)) {
       fail(`rule ${rule.id} needs whole minutes for within_minutes`);
     }
   }
   return rules;
+}
+
+function deny(rule, code, taintedBy) {
+  const verdict = { decision: 'DENY', code, rule: rule.id };
+  if (taintedBy !== undefined) verdict.tainted_by = taintedBy;
+  // An enforced rule blocks even in observe mode; the rest only record.
+  if (rule.enforce === true) verdict.enforce = true;
+  return verdict;
+}
+
+// A run budget sums only the active run's reported usage; without a run id it
+// falls back to the task, which is what a ledger written before runs needs.
+function usageTotals(history, proposal) {
+  const runId = proposal?.run_id;
+  let tokens = 0;
+  let cost = 0;
+  for (const entry of history) {
+    if (runId !== undefined && entry.run_id !== runId) continue;
+    try {
+      const usage = normalizeUsage(entry);
+      if (!usage) continue;
+      tokens += usage.tokens;
+      cost += usage.cost_usd;
+    } catch {
+      continue;
+    }
+  }
+  return { tokens, cost };
 }
 
 // The most recent matching step taints the path; naming it is what makes the
@@ -101,7 +141,7 @@ export function evaluatePath(rules, history, proposal, now = new Date()) {
     // A ceiling on the task itself. This is the rule that stops a runaway loop,
     // which is where an agent's money actually goes missing.
     if (rule.max_steps !== undefined && history.length >= rule.max_steps) {
-      return { decision: 'DENY', code: 'STEP_LIMIT', rule: rule.id, tainted_by: history.length };
+      return deny(rule, 'STEP_LIMIT', history.length);
     }
     if (rule.max_repeats !== undefined) {
       const proposalHash = argsHashOf(proposal);
@@ -112,8 +152,17 @@ export function evaluatePath(rules, history, proposal, now = new Date()) {
           (entry) => entry.subject === proposal.subject && argsHashOf(entry) === proposalHash,
         );
         if (repeats.length >= rule.max_repeats) {
-          return { decision: 'DENY', code: 'REPEAT_LIMIT', rule: rule.id, tainted_by: repeats[0].seq };
+          return deny(rule, 'REPEAT_LIMIT', repeats[0].seq);
         }
+      }
+    }
+    if (rule.max_tokens !== undefined || rule.max_cost_usd !== undefined) {
+      const totals = usageTotals(history, proposal);
+      if (rule.max_tokens !== undefined && totals.tokens >= rule.max_tokens) {
+        return deny(rule, 'BUDGET_EXCEEDED');
+      }
+      if (rule.max_cost_usd !== undefined && totals.cost >= rule.max_cost_usd) {
+        return deny(rule, 'BUDGET_EXCEEDED');
       }
     }
     const trigger = rule.if_path ?? {};
@@ -130,7 +179,7 @@ export function evaluatePath(rules, history, proposal, now = new Date()) {
       return true;
     });
     if (hit) {
-      return { decision: 'DENY', code: 'PATH_DENIED', rule: rule.id, tainted_by: hit.seq };
+      return deny(rule, 'PATH_DENIED', hit.seq);
     }
   }
   return null;

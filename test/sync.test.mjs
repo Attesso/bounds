@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import { append, appendUsage, init, verifyLedger } from '../src/store.mjs';
+import { endRun, startRun } from '../src/run.mjs';
 import { readSyncState, sync, watchSync } from '../src/sync.mjs';
 import { tempDir } from './helpers.mjs';
 
@@ -115,6 +116,29 @@ test('a usage-only window still advances the cursor', async () => {
     assert.equal(payload.entries.length, 0);
     assert.equal(payload.usage.length, 1);
     assert.equal(readSyncState(root).last_seq, 1);
+  } finally {
+    await http.close();
+  }
+});
+
+test('run markers are not uploaded and the cursor advances past them', async () => {
+  const root = tempDir('attesso-sync-run');
+  init(root);
+  startRun(root, {});
+  append(root, { action: 'tool.call', subject: 'read_file', task: 't1', trust: 'internal', capability: 'read' });
+  endRun(root);
+
+  const http = await server((body, response) => {
+    const payload = JSON.parse(body);
+    response.end(JSON.stringify({ accepted: payload.entries.length, skipped: 0, metered: payload.entries.length }));
+  });
+  try {
+    const result = await sync({ dir: root, url: http.url, key: 'att_test_key' });
+    assert.equal(result.accepted, 1);
+    assert.equal(result.last_seq, 3);
+    const payload = JSON.parse(http.requests[0].body);
+    assert.deepEqual(payload.entries.map((entry) => entry.action), ['tool.call']);
+    assert.equal(readSyncState(root).last_seq, 3);
   } finally {
     await http.close();
   }

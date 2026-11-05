@@ -108,7 +108,16 @@ test('a partial init without a key is still uninitialised', () => {
 test('a live lock waits and then refuses; a stale one is reclaimed', () => {
   const dir = workspace();
   writeFileSync(paths(dir).lock, String(process.pid));
-  assert.throws(() => append(dir, proposal(1250)), /holds the ledger/);
+  // Pin the wait: CI raises the budget so eight concurrent writers survive a
+  // loaded machine, and this test only asserts that a live holder is refused.
+  const budget = process.env.ATTESSO_LOCK_WAIT_MS;
+  process.env.ATTESSO_LOCK_WAIT_MS = '50';
+  try {
+    assert.throws(() => append(dir, proposal(1250)), /holds the ledger/);
+  } finally {
+    if (budget === undefined) delete process.env.ATTESSO_LOCK_WAIT_MS;
+    else process.env.ATTESSO_LOCK_WAIT_MS = budget;
+  }
 
   writeFileSync(paths(dir).lock, '999999');
   const entry = append(dir, proposal(1250));

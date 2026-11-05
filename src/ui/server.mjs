@@ -12,10 +12,13 @@ import { gzipSync } from 'node:zlib';
 import { connect as connectAgent, setModeAll, status as agentStatus } from '../connect.mjs';
 import { validatePathsConfig } from '../fs-paths.mjs';
 import { clearWorkspace, resolveWorkspace, workspaceView, writeWorkspace } from '../workspace.mjs';
-import { isInitialised, paths, readEntries } from '../store.mjs';
+import { isInitialised, paths, readActiveRun, readDetail, readEntries, readKey, readRunBudget } from '../store.mjs';
 import { sync } from '../sync.mjs';
+import { lastRunFrom } from '../run.mjs';
+import { verifyDetail } from '../detail.mjs';
+import { verifyEntry } from '../ledger.mjs';
 import { Catalog, validateTimeZone } from './catalog.mjs';
-import { usageForDay } from '../usage.mjs';
+import { isMetaAction, usageForDay } from '../usage.mjs';
 import { days as queryDays, exportCsv as queryExportCsv, flow as queryFlow, page as queryPage, parseCursor, parseDay, parseLimit, summary as querySummary } from './query.mjs';
 import { LedgerTail } from './live.mjs';
 
@@ -52,7 +55,7 @@ function callsPayload(dir) {
   let head = 0;
   for (const entry of readEntries(dir)) {
     head = Math.max(head, entry.seq);
-    if (entry.action === 'llm.session') continue;
+    if (isMetaAction(entry)) continue;
     const day = localDay(new Date(entry.at));
     if (!days[day]) days[day] = [];
     days[day].push(rowFor(entry));
@@ -69,9 +72,15 @@ const writeJson = (file, value) => {
   renameSync(temp, file);
 };
 
+const SECURITY_HEADERS = {
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  'x-frame-options': 'DENY',
+  'x-content-type-options': 'nosniff',
+};
+
 function send(req, res, status, type, body) {
   const buffer = Buffer.isBuffer(body) ? body : Buffer.from(body);
-  const headers = { 'content-type': type, 'cache-control': 'no-store' };
+  const headers = { 'content-type': type, 'cache-control': 'no-store', ...SECURITY_HEADERS };
   if (buffer.length > 1024 && String(req.headers['accept-encoding'] ?? '').includes('gzip')) {
     const compressed = gzipSync(buffer, { level: 6 });
     headers['content-encoding'] = 'gzip';
@@ -83,7 +92,7 @@ function send(req, res, status, type, body) {
   res.end(buffer);
 }
 function json(res, status, body) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...SECURITY_HEADERS });
   res.end(`${JSON.stringify(body)}\n`);
 }
 
@@ -193,7 +202,7 @@ export function startUi({
       tail.read((line) => {
         try {
           const entry = JSON.parse(line);
-          if (entry?.seq && entry.action !== 'llm.session') broadcast(entry);
+          if (entry?.seq && !isMetaAction(entry)) broadcast(entry);
         } catch {
           // A malformed complete line is a ledger error; do not invent an event.
         }
@@ -224,14 +233,45 @@ export function startUi({
       if (url.pathname === '/api/status' && req.method === 'GET') {
         let pathsValue;
         try { pathsValue = readPaths(ledger); } catch (error) { pathsValue = null; }
-        return json(res, 200, { ...agentStatus({ dir: ledger, cwd, home }), paths: pathsValue });
+        let budgetValue;
+        try { budgetValue = readRunBudget(ledger); } catch (error) { budgetValue = { error: 'rules unreadable' }; }
+        let runValue;
+        try { runValue = readActiveRun(ledger); } catch (error) { runValue = { error: 'run unreadable' }; }
+        let lastValue;
+        try { lastValue = lastRunFrom(readEntries(ledger)); } catch (error) { lastValue = { error: 'runs unreadable' }; }
+        return json(res, 200, { ...agentStatus({ dir: ledger, cwd, home }), paths: pathsValue, budget: budgetValue, run: runValue, last: lastValue });
       }
       if (url.pathname === '/api/calls' && req.method === 'GET') {
         return json(res, 200, callsPayload(ledger));
       }
+      if (url.pathname === '/api/v1/detail' && req.method !== 'GET' && req.method !== 'HEAD') {
+        return json(res, 405, { error: 'method not allowed' });
+      }
       if (url.pathname.startsWith('/api/v1/') && req.method === 'GET') {
         try {
           const timeZone = validateTimeZone(url.searchParams.get('tz') ?? undefined);
+          if (url.pathname === '/api/v1/detail') {
+            const rawSeq = url.searchParams.get('seq') ?? '';
+            if (!/^[1-9][0-9]*$/.test(rawSeq)) return json(res, 400, { error: 'seq must be a positive integer' });
+            const seq = Number(rawSeq);
+            const entry = readEntries(ledger).find((item) => item.seq === seq);
+            if (!entry) return json(res, 404, { error: 'no such decision' });
+            if (!verifyEntry(entry, readKey(ledger).public)) {
+              return json(res, 200, { seq, state: 'changed', reason: 'entry signature does not verify' });
+            }
+            if (entry.meta?.detail === 'unavailable') return json(res, 200, { seq, state: 'unavailable' });
+            if (typeof entry.detail_hash !== 'string') return json(res, 200, { seq, state: 'none' });
+            let detail;
+            try {
+              detail = readDetail(ledger, seq);
+            } catch {
+              return json(res, 200, { seq, state: 'changed', reason: 'preview is unreadable' });
+            }
+            if (!detail) return json(res, 200, { seq, state: 'missing' });
+            const checked = verifyDetail(entry, detail);
+            if (!checked.ok) return json(res, 200, { seq, state: 'changed', reason: checked.reason });
+            return json(res, 200, { seq, state: 'verified', detail });
+          }
           if (url.pathname === '/api/v1/summary') {
             return json(res, 200, querySummary(catalog, { day: parseDay(url.searchParams.get('day'), timeZone), timeZone }));
           }
@@ -289,7 +329,7 @@ export function startUi({
         if (isInitialised(ledger) && after > 0) {
           try {
             for (const entry of readEntries(ledger)) {
-              if (entry.action === 'llm.session') continue;
+              if (isMetaAction(entry)) continue;
               if (entry.seq <= after) continue;
               const day = localDay(new Date(entry.at));
               res.write(`id: ${entry.seq}\nevent: decision\ndata: ${JSON.stringify({ day, row: rowFor(entry), seq: entry.seq })}\n\n`);

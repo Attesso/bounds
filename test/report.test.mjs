@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildReport, buildReportStream, renderReport } from '../src/report.mjs';
-import { append, init, paths } from '../src/store.mjs';
+import { endRun, startRun } from '../src/run.mjs';
+import { append, appendUsage, init, paths } from '../src/store.mjs';
 
 const workspace = () => {
   const dir = mkdtempSync(join(tmpdir(), 'attesso-report-'));
@@ -50,6 +51,18 @@ test('the report counts actions, refusals, reasons, tokens and cost per task', (
   assert.match(rendered, /1,000/);
 });
 
+test('run markers are not actions and do not create an unscoped task', () => {
+  const dir = workspace();
+  startRun(dir, {});
+  allowed(dir, 'read_file', 'task-a');
+  endRun(dir);
+
+  const report = buildReport(dir);
+  assert.equal(report.totals.actions, 1);
+  assert.deepEqual(report.tasks.map((task) => task.task), ['task-a']);
+  assert.equal(report.tasks[0].actions, 1);
+});
+
 test('the streaming report matches the array report', async () => {
   const dir = workspace();
   allowed(dir, 'read_file', 'task-a');
@@ -59,6 +72,32 @@ test('the streaming report matches the array report', async () => {
   append(dir, { action: 'llm.session', subject: 'deepseek', task: 'task-a', meta: { tokens: 1000, cost_usd: 0.01 } });
 
   assert.deepEqual(await buildReportStream(dir), buildReport(dir));
+});
+
+test('the report reads measured usage rows as well as legacy totals', () => {
+  const dir = workspace();
+  appendUsage(dir, { task: 'task-a', inputTokens: 600, outputTokens: 600, costUsd: 0.02 });
+  const report = buildReport(dir);
+  const a = report.tasks.find((task) => task.task === 'task-a');
+  assert.equal(a.actions, 0);
+  assert.equal(a.tokens, 1200);
+  assert.equal(a.cost_usd, 0.02);
+  assert.equal(a.api_calls, 1);
+  assert.equal(a.invalid, 0);
+});
+
+test('the report counts an invalid usage row instead of crashing', () => {
+  const dir = workspace();
+  append(dir, {
+    action: 'llm.session',
+    subject: 'model',
+    task: 'task-a',
+    capability: 'model',
+    meta: { usage: { input_tokens: -1 } },
+  });
+  const report = buildReport(dir);
+  assert.equal(report.totals.invalid, 1);
+  assert.match(renderReport(report), /1 invalid usage/);
 });
 
 test('a task named __all__ is a task, not an accumulator', () => {

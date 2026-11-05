@@ -315,6 +315,7 @@ class Proxy {
         trust: classified.trust,
         capability: classified.capability,
         args_hash: argsFingerprint(params.arguments),
+        detail_input: params.arguments ?? {},
         tool_hash: hash,
         mcp_digest: this.toolLock.server_digest ? this.toolLock.manifest_digest : undefined,
       });

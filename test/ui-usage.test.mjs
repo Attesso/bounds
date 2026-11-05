@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { append, init } from '../src/store.mjs';
+import { endRun, startRun } from '../src/run.mjs';
 import { Catalog } from '../src/ui/catalog.mjs';
 import { normalizeUsage, usageForDay } from '../src/usage.mjs';
 import { tempDir } from './helpers.mjs';
@@ -29,6 +30,19 @@ test('usage is task-level and does not invent a per-call number', () => {
   assert.equal(task.api_calls, 4);
   assert.equal(usage.totals.measured_calls, 2);
   assert.equal(usage.coverage, 1);
+});
+
+test('run markers are not calls and do not create a task', () => {
+  const dir = tempDir('attesso-usage-run');
+  init(dir);
+  const run = startRun(dir, {});
+  append(dir, { action: 'tool.call', subject: 'read_file', task: 'task-a', trust: 'internal', capability: 'read' }, { now: new Date(run.started_at) });
+  endRun(dir);
+
+  const usage = usageForDay(new Catalog(dir), { day: run.started_at.slice(0, 10), timeZone: 'UTC' });
+  assert.equal(usage.totals.calls, 1);
+  assert.equal(usage.tasks.length, 1);
+  assert.equal(usage.tasks[0].task, 'task-a');
 });
 
 test('a per-call usage record is attached to its sequence', () => {
