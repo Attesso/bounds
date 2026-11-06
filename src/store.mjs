@@ -9,7 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import { channel } from 'node:diagnostics_channel';
 import { closeSync, chmodSync, existsSync, fsyncSync, ftruncateSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { buildEntry, entryHash, newSigningKey, signEntry, verifyEntry, verifyHead, verifyStep } from './ledger.mjs';
 import { DEFAULT_TOOLS, loadTools } from './classify.mjs';
 import { decide } from './decide.mjs';
@@ -43,7 +43,17 @@ export function paths(dir) {
   };
 }
 
-const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
+// A parse failure has to name the file that failed: the hook turns this into a
+// message a person reads, and blaming the ledger when policy.json is the broken
+// file sends them to the wrong file.
+const readJson = (path) => {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (error) {
+    error.file = basename(path);
+    throw error;
+  }
+};
 
 // In-process monitoring: no dependency, no output, no cost when nobody listens.
 const decisionChannel = channel('bounds.decision');
@@ -423,7 +433,7 @@ export function setRunBudget(dir, { tokens, usd, enforce = false, off = false } 
   return withLock(dir, () => {
     const file = paths(dir);
     const current = existsSync(file.rules)
-      ? JSON.parse(readFileSync(file.rules, 'utf8'))
+      ? readJson(file.rules)
       : { version: 1, rules: [] };
     if (!Array.isArray(current.rules)) throw new Error('rules.json has no rules list');
     const others = current.rules.filter((rule) => rule.id !== 'run-budget');
@@ -454,7 +464,7 @@ export function setRunBudget(dir, { tokens, usd, enforce = false, off = false } 
 export function readRunBudget(dir) {
   const file = paths(dir);
   if (!existsSync(file.rules)) return null;
-  const rules = JSON.parse(readFileSync(file.rules, 'utf8'));
+  const rules = readJson(file.rules);
   validateRules(rules);
   const rule = (rules.rules ?? []).find((item) => item.id === 'run-budget');
   if (!rule) return null;

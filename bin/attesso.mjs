@@ -37,6 +37,12 @@ import { endRun, startRun } from './../src/run.mjs';
 import { verifyDetail } from './../src/detail.mjs';
 import { ENGINE_VERSION } from './../src/version.mjs';
 
+// A recorded string is displayed, not executed. A crafted subject carrying ANSI
+// escapes can repaint the operator's terminal or forge a link in the output, so
+// control bytes are dropped at the point of printing, not at the point of writing
+// (the record must keep what the agent actually sent).
+const displayable = (value) => String(value).replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+
 const argv = process.argv.slice(2);
 const dirAt = argv.indexOf('--dir');
 const DIR = dirAt === -1 ? '.attesso' : argv[dirAt + 1];
@@ -145,7 +151,7 @@ function requireLedger() {
 }
 
 function describe(entry) {
-  const subject = entry.subject ? ` ${entry.subject}` : '';
+  const subject = entry.subject ? ` ${displayable(entry.subject)}` : '';
   const amount = entry.amount ? ` ${formatMinor(entry.amount.minor, entry.amount.currency)} ${entry.amount.currency}` : '';
   return `${entry.action}${subject}${amount}`;
 }
@@ -155,7 +161,7 @@ function renderWatchEntry(entry) {
   const rule = entry.rule ? ` ${entry.rule}` : '';
   const control = entry.control ? ` control=${entry.control.mode}` : '';
   const task = entry.task ? ` task=${String(entry.task).slice(0, 12)}` : '';
-  return `#${entry.seq} ${at} ${String(entry.decision).padEnd(5)} ${entry.subject ?? '(none)'} ${entry.capability ?? ''} ${entry.code}${rule}${task}${control}`;
+  return `#${entry.seq} ${at} ${String(entry.decision).padEnd(5)} ${displayable(entry.subject ?? '(none)')} ${entry.capability ?? ''} ${entry.code}${rule}${task}${control}`;
 }
 
 function toolsCommand(rest) {
@@ -417,7 +423,7 @@ function show() {
   }
   const bySubject = new Map();
   for (const entry of entries) {
-    const label = entry.subject ?? '(none)';
+    const label = displayable(entry.subject ?? '(none)');
     bySubject.set(label, (bySubject.get(label) ?? 0) + 1);
   }
   if (bySubject.size > 0 && [...bySubject.keys()].some((label) => label !== '(none)')) {
@@ -596,7 +602,7 @@ switch (command) {
           detail,
         }, null, 2));
       } else {
-        console.log([`#${entry.seq}`, entry.action, entry.subject, entry.decision, entry.code, entry.at].filter(Boolean).join(' '));
+        console.log([`#${entry.seq}`, displayable(entry.action), displayable(entry.subject ?? ''), entry.decision, entry.code, entry.at].filter(Boolean).join(' '));
         console.log(`  ${detail.summary}`);
         for (const [name, value] of Object.entries(detail.fields)) console.log(`  ${name}: ${value}`);
         if (detail.redactions.length > 0) {
@@ -1123,7 +1129,7 @@ switch (command) {
         const body = {
           decision: 'DENY',
           code: 'LEDGER_UNAVAILABLE',
-          message: `Attesso could not read the ledger: ${error.message}`,
+          message: `Attesso could not read ${error.file ?? 'the ledger'}: ${error.message}`,
           enforced: !observe,
         };
         const rendered = renderHook({ harness: normalized?.harness ?? 'generic', result: { body } });

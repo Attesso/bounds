@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { canonical } from './canonical.mjs';
 import { classifyTool, loadTools } from './classify.mjs';
-import { taskControl } from './control.mjs';
+import { setTaskControl, taskControl } from './control.mjs';
+import { remedyFor } from './remedy.mjs';
 
 // One decision for a harness hook. Reads the shell-hook payload on stdin
 // ({hook_event_name, tool_name, tool_input, session_id, ...}, the shape Claude
@@ -58,6 +59,7 @@ export function createHookDecider({ append, dir, observe }) {
           decision: observe ? 'allow' : 'block',
           code: 'CONTROL_UNAVAILABLE',
           enforced: !observe,
+          remedy: remedyFor('CONTROL_UNAVAILABLE'),
           message: `Attesso could not read the task control: ${error.message}`,
         },
       };
@@ -67,6 +69,19 @@ export function createHookDecider({ append, dir, observe }) {
       proposal,
       control ? { control: { mode: control.mode, at: control.at, reason: control.reason } } : undefined,
     );
+    // The verdict says the task is stopped, so it has to be true: without this
+    // write the code would claim a state nothing recorded.
+    if (
+      entry.code === 'TASK_STOPPED' &&
+      !observe &&
+      entry.control === undefined &&
+      typeof entry.task === 'string' &&
+      entry.task !== ''
+    ) {
+      setTaskControl(dir, entry.task, 'stop', {
+        reason: 'the same call kept returning after a refusal; resume after changing the rule or the task',
+      });
+    }
     const refused = entry.decision !== 'ALLOW';
     const enforced = refused && (!observe || entry.control !== undefined || entry.enforce === true);
     return {
@@ -80,6 +95,7 @@ export function createHookDecider({ append, dir, observe }) {
         code: entry.code,
         enforced,
         seq: entry.seq,
+        ...(refused ? { remedy: remedyFor(entry.code) } : {}),
         message: refusalMessage(entry, payload.tool_name),
       },
     };

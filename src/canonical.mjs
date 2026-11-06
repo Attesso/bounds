@@ -36,8 +36,14 @@ function serialise(value, path, seen) {
   seen.add(value);
   try {
     if (Array.isArray(value)) {
-      const items = value.map((item, index) => serialise(item, `${path}[${index}]`, seen));
-      return `[${items.map((item) => (item === undefined ? 'null' : item)).join(',')}]`;
+      // An index loop, not map: map preserves holes, and a hole would be written
+      // as an empty slot - `[,1]` - which is not JSON at all.
+      const items = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const item = serialise(value[index], `${path}[${index}]`, seen);
+        items.push(item === undefined ? 'null' : item);
+      }
+      return `[${items.join(',')}]`;
     }
     const parts = [];
     for (const key of Object.keys(value).sort()) {

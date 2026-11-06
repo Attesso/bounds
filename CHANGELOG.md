@@ -5,6 +5,27 @@ on attesso.com/bounds renders the same history from
 `apps/www/src/content/bounds-releases.ts`; this file is the copy that travels
 with the package.
 
+## 0.13.3 - 6 November 2026
+
+- Every refusal now carries a `remedy` from a closed list: `change_arguments`,
+  `raise_budget`, `resume_task`, `request_approval` or `stop`. It rides in the
+  hook and `serve` answer for every harness, so an agent can act on the verdict
+  instead of repeating the call. One measured ledger has the same call refused
+  106 times; a refusal with no next step is why.
+- A sparse array now serialises as `null`, never as an empty slot. `map` kept
+  holes, so `{a:[,1]}` signed `{"a":[,1]}`, which is not JSON; a payload built
+  that way could never be verified.
+- A broken file is named in the refusal: `Attesso could not read policy.json`
+  where it used to blame the ledger for every parse failure.
+- Control bytes are dropped when a recorded subject is printed. The ledger still
+  stores the bytes the agent sent; `show`, `log` and the JSON report can no
+  longer be made to repaint a terminal.
+- A call refused at its repeat ceiling three times stops the task instead of
+  being refused forever. The verdict is `TASK_STOPPED`, the control file records
+  why, and the remedy is `resume_task`, so the human who changes the rule or the
+  task is the one who restarts it. Observe mode records the verdict without
+  steering the task.
+
 ## 0.13.2
 
 - `canonical()` now serialises exactly what the writer stores. It drops an

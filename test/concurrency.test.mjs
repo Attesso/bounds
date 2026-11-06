@@ -85,7 +85,12 @@ test('concurrent identical calls stop at the repeat ceiling', async () => {
   const state = readState(dir);
   assert.equal(state.entries.length, 8);
   assert.equal(state.entries.filter((entry) => entry.decision === 'ALLOW').length, 2);
-  assert.equal(state.entries.filter((entry) => entry.code === 'REPEAT_LIMIT').length, 6);
+  const refused = state.entries.filter((entry) => entry.decision !== 'ALLOW');
+  assert.equal(refused.length, 6);
+  // Nothing past the ceiling is allowed; the refusals either name the ceiling or
+  // stop the task once the same call keeps coming back.
+  assert.ok(refused.every((entry) => entry.code === 'REPEAT_LIMIT' || entry.code === 'TASK_STOPPED'));
+  assert.ok(refused.some((entry) => entry.code === 'TASK_STOPPED'));
   assert.equal(verifyChain(state.entries, state.key.public, state.config.head).ok, true);
 });
 

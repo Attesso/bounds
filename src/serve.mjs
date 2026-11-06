@@ -7,6 +7,8 @@
 // verdict, the agent keeps working.
 import { createInterface } from 'node:readline';
 import { append } from './store.mjs';
+import { setTaskControl } from './control.mjs';
+import { remedyFor } from './remedy.mjs';
 
 const parse = (line) => {
   try {
@@ -34,6 +36,19 @@ export function serve(dir, { observe = false, input = process.stdin, output = pr
       output.write(`${JSON.stringify({ id: request.id ?? null, error: String(error.message ?? error) })}\n`);
       return;
     }
+    // Same rule as the hook: a TASK_STOPPED verdict has to be true, or the code
+    // names a state nothing recorded.
+    if (
+      entry.code === 'TASK_STOPPED' &&
+      !observe &&
+      entry.control === undefined &&
+      typeof entry.task === 'string' &&
+      entry.task !== ''
+    ) {
+      setTaskControl(dir, entry.task, 'stop', {
+        reason: 'the same call kept returning after a refusal; resume after changing the rule or the task',
+      });
+    }
     output.write(
       `${JSON.stringify({
         id: request.id ?? null,
@@ -45,6 +60,7 @@ export function serve(dir, { observe = false, input = process.stdin, output = pr
             : `${entry.rule} (tainted by step #${entry.tainted_by})`
           : null,
         enforced: entry.decision !== 'ALLOW' && (!observe || entry.enforce === true),
+        ...(entry.decision === 'ALLOW' ? {} : { remedy: remedyFor(entry.code) }),
         seq: entry.seq,
       })}\n`,
     );

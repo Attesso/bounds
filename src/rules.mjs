@@ -58,7 +58,9 @@ export function deniedCapabilities(rule) {
 
 export function validateRules(rules) {
   const fail = (message) => {
-    throw new Error(`rules are invalid: ${message}`);
+    const error = new Error(`rules are invalid: ${message}`);
+    error.file = 'rules.json';
+    throw error;
   };
   if (rules === null || typeof rules !== 'object') fail('not an object');
   if (rules.version !== 1) fail('version must be 1');
@@ -152,6 +154,13 @@ export function evaluatePath(rules, history, proposal, now = new Date()) {
           (entry) => entry.subject === proposal.subject && argsHashOf(entry) === proposalHash,
         );
         if (repeats.length >= rule.max_repeats) {
+          // Past the ceiling this call cannot pass, so every retry spends a model
+          // turn to hear the same sentence. One measured ledger holds 106 of them.
+          // Three refusals of the identical call is a loop, not a correction.
+          const refusals = repeats.filter((entry) => entry.decision !== 'ALLOW').length;
+          if (refusals >= 3) {
+            return deny(rule, 'TASK_STOPPED', repeats[0].seq);
+          }
           return deny(rule, 'REPEAT_LIMIT', repeats[0].seq);
         }
       }

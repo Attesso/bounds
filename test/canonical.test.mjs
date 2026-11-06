@@ -108,3 +108,14 @@ describe('canonical agrees with what the ledger stores', () => {
     assert.equal(signed.includes('model'), false);
   });
 });
+
+describe('arrays', () => {
+  it('writes a hole as null, never as an empty slot', () => {
+    // Array.prototype.map preserves holes, which produced [,1]: not JSON at all,
+    // so the entry signed bytes no reader could parse.
+    const sparse = { a: [, 1], b: [1, , 3], c: [,,] };
+    const text = canonical(sparse);
+    assert.doesNotThrow(() => JSON.parse(text), `not JSON: ${text}`);
+    assert.equal(text, JSON.stringify({ a: [null, 1], b: [1, null, 3], c: [null, null] }));
+  });
+});

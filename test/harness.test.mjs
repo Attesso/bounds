@@ -143,7 +143,10 @@ test('an unreadable ledger fails closed in enforce and stays out of the way in o
   });
   assert.equal(claude.status, 0);
   assert.equal(JSON.parse(claude.stdout).hookSpecificOutput.permissionDecision, 'deny');
-  assert.match(JSON.parse(claude.stdout).hookSpecificOutput.permissionDecisionReason, /could not read the ledger/);
+  // The reason names the file that failed, not the ledger: the ledger is fine.
+  const reason = JSON.parse(claude.stdout).hookSpecificOutput.permissionDecisionReason;
+  assert.match(reason, /could not read policy\.json/);
+  assert.doesNotMatch(reason, /could not read the ledger/);
 
   const hermes = hookCall(dir, { tool_name: 'Read', tool_input: { path: '/tmp/x' } });
   assert.equal(hermes.status, 2);

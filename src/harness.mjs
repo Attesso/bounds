@@ -59,7 +59,10 @@ export function renderHook({ harness, result }) {
 
   if (!body.enforced) {
     if (harness === HERMES) {
-      return { stdout: `${JSON.stringify({ decision: 'allow', code: body.code })}\n`, exitCode: 0 };
+      return {
+        stdout: `${JSON.stringify({ decision: 'allow', code: body.code, ...(body.remedy ? { remedy: body.remedy } : {}) })}\n`,
+        exitCode: 0,
+      };
     }
     if (harness === CLINE) {
       return { stdout: `${JSON.stringify({ cancel: false })}\n`, exitCode: 0 };
@@ -72,7 +75,7 @@ export function renderHook({ harness, result }) {
 
   if (harness === HERMES) {
     return {
-      stdout: `${JSON.stringify({ decision: 'block', message, code: body.code })}\n`,
+      stdout: `${JSON.stringify({ decision: 'block', message, code: body.code, remedy: body.remedy })}\n`,
       exitCode: 2,
     };
   }
@@ -85,6 +88,7 @@ export function renderHook({ harness, result }) {
           permissionDecision: 'deny',
           permissionDecisionReason: message,
         },
+        remedy: body.remedy,
       })}\n`,
       exitCode: 0,
     };
@@ -96,18 +100,22 @@ export function renderHook({ harness, result }) {
         permission: 'deny',
         user_message: message,
         agent_message: message,
+        remedy: body.remedy,
       })}\n`,
       exitCode: 0,
     };
   }
 
   if (harness === CLINE) {
-    return { stdout: `${JSON.stringify({ cancel: true, errorMessage: message })}\n`, exitCode: 0 };
+    return {
+      stdout: `${JSON.stringify({ cancel: true, errorMessage: message, remedy: body.remedy })}\n`,
+      exitCode: 0,
+    };
   }
 
   if (harness === GEMINI) {
     return {
-      stdout: `${JSON.stringify({ decision: 'deny', reason: message, systemMessage: message })}\n`,
+      stdout: `${JSON.stringify({ decision: 'deny', reason: message, systemMessage: message, remedy: body.remedy })}\n`,
       exitCode: 0,
     };
   }
@@ -124,6 +132,7 @@ export function renderHook({ harness, result }) {
       cancel: true,
       errorMessage: message,
       reason: message,
+      remedy: body.remedy,
     })}\n`,
     exitCode: 2,
   };

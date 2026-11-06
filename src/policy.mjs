@@ -34,7 +34,9 @@ export function policyDigest(policy) {
 // repo.write has bounds but no amount, and saying so with max_amount is wrong.
 export function validatePolicy(policy) {
   const fail = (message) => {
-    throw new Error(`policy is invalid: ${message}`);
+    const error = new Error(`policy is invalid: ${message}`);
+    error.file = 'policy.json';
+    throw error;
   };
   if (policy === null || typeof policy !== 'object') fail('not an object');
   if (policy.version !== 1) fail('version must be 1');
