@@ -31,10 +31,41 @@ test('run markers do not appear as calls', async () => {
   append(ledger, { action: 'run.end', subject: 'run' });
   const ui = await startUi({ dir: ledger, home, port: 0, open: false });
   try {
-    const body = await (await get(ui, 'api/calls')).json();
-    assert.equal(sizeof(body.days), 1);
-    const day = Object.keys(body.days)[0];
-    assert.deepEqual(body.days[day].map((row) => row[2]), ['read_file']);
+    const body = await (await get(ui, 'api/v1/calls?limit=200&tz=UTC')).json();
+    assert.deepEqual(body.rows.map((row) => row[2]), ['read_file']);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the ledger total is refreshed on load and on live appends', async () => {
+  const { ledger, home } = fixture();
+  const ui = await startUi({ dir: ledger, home, port: 0, open: false });
+  try {
+    const page = await get(ui, '');
+    const html = await page.text();
+    assert.match(html, /id="ledger-total"/);
+    assert.match(html, /el\('ledger-total'\)\.textContent = fmt\(initialHead\)/);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the call endpoint addresses one decision by sequence', async () => {
+  const { ledger, home } = fixture();
+  const entry = append(ledger, { action: 'tool.call', subject: 'terminal', task: 'deep-link', trust: 'internal', capability: 'execute' });
+  const ui = await startUi({ dir: ledger, home, port: 0, open: false });
+  try {
+    const found = await get(ui, `api/v1/call?seq=${entry.seq}&tz=UTC`);
+    assert.equal(found.status, 200);
+    const body = await found.json();
+    assert.equal(body.row[0], entry.seq);
+    assert.equal(body.row[2], 'terminal');
+    assert.match(body.day, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal((await get(ui, 'api/v1/call?seq=1e3&tz=UTC')).status, 400);
+    assert.equal((await get(ui, 'api/v1/call?seq=999&tz=UTC')).status, 404);
+    const start = append(ledger, { action: 'run.start', subject: 'run' });
+    assert.equal((await get(ui, `api/v1/call?seq=${start.seq}&tz=UTC`)).status, 404);
   } finally {
     await ui.close();
   }
@@ -114,13 +145,13 @@ test('the packaged UI serves the page, status, calls and paths over loopback', a
     assert.equal(statusBody.run, null);
     assert.equal(statusBody.last, null);
 
-    const calls = await get(ui, 'api/calls');
+    const calls = await get(ui, 'api/v1/calls?limit=200&tz=UTC');
     const body = await calls.json();
-    assert.equal(sizeof(body.days), 1);
-    const day = Object.keys(body.days)[0];
-    assert.equal(body.days[day][0][2], 'read_file');
-    assert.ok(body.head >= 1);
+    assert.equal(body.rows.length, 1);
+    assert.equal(body.rows[0][2], 'read_file');
+    assert.match(body.next_cursor, /^v1:[1-9][0-9]*:UTC$/);
 
+    const day = new Date().toISOString().slice(0, 10);
     const summary = await get(ui, `api/v1/summary?day=${day}&tz=UTC`);
     assert.equal(summary.status, 200);
     assert.equal((await summary.json()).calls, 1);
@@ -243,7 +274,7 @@ test('the UI stream appends a new decision once', async () => {
   const { ledger, home } = fixture();
   const ui = await startUi({ dir: ledger, home, port: 0, open: false });
   try {
-    const initial = await (await get(ui, 'api/calls')).json();
+    const initial = await (await get(ui, 'api/v1/calls?limit=200&tz=UTC')).json();
     const controller = new AbortController();
     const stream = await fetch(`${ui.url}api/events?after=${initial.head}`, {
       headers: { 'x-bounds-token': ui.token },

@@ -147,7 +147,10 @@ export function verifyChain(entries, publicPem, head) {
   let previous = 'genesis';
   for (const [index, entry] of entries.entries()) {
     const step = verifyStep(entry, index, previous, publicPem);
-    if (!step.ok) return step;
+    // Report the scope, not just the verdict: the entries before a broken one
+    // still verify, and that is the difference between a lost record and a
+    // damaged one.
+    if (!step.ok) return { ...step, verified: index };
     previous = step.hash;
   }
   return verifyHead(entries.length, previous, head);

@@ -1,6 +1,6 @@
 {
   "name": "attesso",
-  "version": "0.13.0",
+  "version": "0.13.2",
   "description": "Bounds: decide an AI agent's next tool call before it runs, with a signed record. Per-run budgets, local previews, per-rule enforcement. Free and unlimited locally; $0.00085 per synced decision.",
   "license": "Apache-2.0",
   "type": "module",
@@ -13,14 +13,16 @@
     "bin",
     "src",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "NOTICE"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
+    "release:check": "node scripts/release-check.mjs",
     "prepublishOnly": "node --test test/*.test.mjs"
   },
   "keywords": [

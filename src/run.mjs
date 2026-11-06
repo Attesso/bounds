@@ -3,7 +3,7 @@
 // a decision without scanning the log. The signed run.start and run.end entries
 // are the record; the file is only the live pointer.
 import { randomBytes } from 'node:crypto';
-import { append, clearActiveRun, readActiveRun, writeActiveRun } from './store.mjs';
+import { append, readActiveRun, readLastRun, writeActiveRun } from './store.mjs';
 
 const MAX_TEXT = 200;
 const OUTCOMES = new Set(['success', 'failed', 'abandoned', 'unknown']);
@@ -23,10 +23,10 @@ export function startRun(dir, { goal } = {}) {
   const entry = append(
     dir,
     { action: 'run.start', subject: 'run', run_id: id, meta: text ? { goal: text } : undefined },
-    { verdict: { decision: 'ALLOW', code: 'ALLOWED', rule: 'run.start' } },
+    { verdict: { decision: 'ALLOW', code: 'ALLOW', rule: 'run.start' } },
   );
   const activeRun = { version: 1, id, started_at: entry.at, ...(text ? { goal: text } : {}) };
-  writeActiveRun(dir, activeRun);
+  writeActiveRun(dir, { version: 1, active: activeRun, last: readLastRun(dir) });
   return { ...activeRun, seq: entry.seq };
 }
 
@@ -38,9 +38,13 @@ export function endRun(dir, { outcome = 'unknown', note } = {}) {
   const entry = append(
     dir,
     { action: 'run.end', subject: 'run', run_id: active.id, meta: { outcome, ...(text ? { note: text } : {}) } },
-    { verdict: { decision: 'ALLOW', code: 'ALLOWED', rule: 'run.end' } },
+    { verdict: { decision: 'ALLOW', code: 'ALLOW', rule: 'run.end' } },
   );
-  clearActiveRun(dir);
+  writeActiveRun(dir, {
+    version: 1,
+    active: null,
+    last: { ...active, ended_at: entry.at, outcome, ...(text ? { note: text } : {}) },
+  });
   return { id: active.id, outcome, note: text || undefined, seq: entry.seq };
 }
 

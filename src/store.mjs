@@ -14,6 +14,7 @@ import { buildEntry, entryHash, newSigningKey, signEntry, verifyEntry, verifyHea
 import { DEFAULT_TOOLS, loadTools } from './classify.mjs';
 import { decide } from './decide.mjs';
 import { parseLine, parseTail } from './jsonl.mjs';
+import { ENGINE_VERSION } from './version.mjs';
 import { policyDigest, validatePolicy } from './policy.mjs';
 import { rulesDigest, rulesForProfile, validateRules } from './rules.mjs';
 import { toolGate, manifestDigest, toolsDigest } from './toolpin.mjs';
@@ -215,25 +216,48 @@ export function readConfig(dir) {
   return readJson(paths(dir).config);
 }
 
-// The active run is a small state file beside the ledger, like the mode file:
-// a per-call hook can read it without scanning the log. The signed run.start
-// and run.end entries remain the record.
-export function readActiveRun(dir) {
+// The run state file holds the live pointer and the last closed run, so the
+// status endpoint reads one small file instead of scanning the log. The signed
+// run.start and run.end entries remain the record.
+function readRunFile(dir) {
   const file = paths(dir).run;
   if (!existsSync(file)) return null;
   const value = readJson(file);
+  if (value === null || typeof value !== 'object' || value.version !== 1) throw new Error('run.json is malformed');
+  if (value.active !== undefined && value.active !== null) {
+    const active = value.active;
+    if (
+      typeof active !== 'object'
+      || typeof active.id !== 'string'
+      || active.id === ''
+      || typeof active.started_at !== 'string'
+      || active.started_at === ''
+    ) {
+      throw new Error('run.json is malformed');
+    }
+  }
   if (
-    value === null
-    || typeof value !== 'object'
-    || value.version !== 1
-    || typeof value.id !== 'string'
-    || value.id === ''
-    || typeof value.started_at !== 'string'
-    || value.started_at === ''
+    value.active === undefined
+    && (typeof value.id !== 'string' || value.id === '' || typeof value.started_at !== 'string' || value.started_at === '')
   ) {
     throw new Error('run.json is malformed');
   }
   return value;
+}
+
+export function readActiveRun(dir) {
+  const value = readRunFile(dir);
+  if (value === null) return null;
+  if (value.active === undefined) return value; // legacy flat active run
+  return value.active;
+}
+
+export function readLastRun(dir) {
+  const value = readRunFile(dir);
+  if (value === null || value.last === undefined || value.last === null) return null;
+  const last = value.last;
+  if (typeof last !== 'object' || typeof last.id !== 'string' || last.id === '') throw new Error('run.json is malformed');
+  return last;
 }
 
 export function writeActiveRun(dir, value) {
@@ -343,7 +367,7 @@ export function init(dir, { profile = 'balanced' } = {}) {
       version: 1,
       action: '*',
     });
-    writeJson(file.config, { version: 1, head: { count: 0, hash: 'genesis' } });
+    writeJson(file.config, { version: 1, head: { count: 0, hash: 'genesis' }, engine: ENGINE_VERSION });
     writeJson(file.tools, DEFAULT_TOOLS);
     writeJson(file.rules, rules);
     writeFileSync(file.ledger, '', { mode: 0o600 });
@@ -481,17 +505,28 @@ export async function verifyLedger(dir) {
   }
   let previous = 'genesis';
   let count = 0;
+  let verified = 0;
+  let ignoredTail = false;
   try {
-    await forEachEntry(file.ledger, (entry, index) => {
-      const step = verifyStep(entry, index - 1, previous, key.public);
-      if (!step.ok) throw new Error(step.reason);
-      previous = step.hash;
-      count = index;
-    });
+    await forEachEntry(
+      file.ledger,
+      (entry, index) => {
+        const step = verifyStep(entry, index - 1, previous, key.public);
+        if (!step.ok) throw new Error(step.reason);
+        previous = step.hash;
+        count = index;
+        verified = index;
+      },
+      {
+        onIgnoredTail: () => {
+          ignoredTail = true;
+        },
+      },
+    );
   } catch (error) {
-    return { ok: false, reason: error.message, kid: key.kid };
+    return { ok: false, reason: error.message, kid: key.kid, verified, ignoredTail };
   }
-  return { ...verifyHead(count, previous, head), kid: key.kid, count };
+  return { ...verifyHead(count, previous, head), kid: key.kid, count, verified, ignoredTail };
 }
 
 function processAlive(pid) {
@@ -674,7 +709,12 @@ function reconcileHead(dir, head, task, publicPem) {
   }
   if (count === head.count) return { head, history };
   const repaired = { count, hash: lastHash };
-  writeJson(paths(dir).config, { version: 1, head: repaired });
+  const previousConfig = readJson(paths(dir).config);
+  writeJson(paths(dir).config, {
+    version: 1,
+    head: repaired,
+    engine: previousConfig?.engine ?? ENGINE_VERSION,
+  });
   return { head: repaired, history };
 }
 
@@ -778,7 +818,11 @@ export function append(dir, proposal, { now = new Date(), control, verdict: forc
     if (rules) writeSnapshot(dir, rulesHash, rules);
     writeSnapshot(dir, toolsHash, tools, 'tools');
     writeEntry(file, entry);
-    writeJson(file.config, { version: 1, head: { count: seq, hash: entryHash(entry) } });
+    writeJson(file.config, {
+      version: 1,
+      head: { count: seq, hash: entryHash(entry) },
+      engine: config?.engine ?? ENGINE_VERSION,
+    });
     publishDecision(entry);
     return entry;
   });
@@ -813,6 +857,6 @@ export function appendUsage(dir, { task, model, inputTokens = 0, outputTokens = 
     meta: { usage },
   }, {
     now,
-    verdict: { decision: 'ALLOW', code: 'ALLOWED', rule: 'usage.reported' },
+    verdict: { decision: 'ALLOW', code: 'ALLOW', rule: 'usage.reported' },
   });
 }

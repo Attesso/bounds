@@ -57,6 +57,21 @@ function legacyModeDirs(home) {
   }
 }
 
+// A hook script that reads its own mode file is a second source of truth. This
+// install's hook.sh does, and `attesso mode` writes both, but a hand edit of the
+// script's file leaves the ledger one behind. Status has to say so: reporting
+// one value while the gate uses another is how a person believes the gate is
+// enforcing when it is not.
+export function modeSources(dir, { home = homedir() } = {}) {
+  const ledger = { path: modePath(dir), mode: readMode(dir) };
+  const legacy = legacyModeDirs(home).map((legacyDir) => ({
+    path: modePath(legacyDir),
+    mode: existsSync(modePath(legacyDir)) ? readMode(legacyDir) : null,
+  }));
+  const drift = legacy.some((source) => source.mode !== null && source.mode !== ledger.mode);
+  return { ledger, legacy, drift };
+}
+
 function wiredHarnesses(harnesses, { dir, cwd }) {
   const ledger = resolve(dir);
   return harnesses.map((harness) => {
@@ -93,12 +108,16 @@ function instructions({ initialized, mode, wired, manual }) {
 export function status({ dir, cwd = process.cwd(), home = homedir() } = {}) {
   const initialized = isInitialised(dir);
   const mode = readMode(dir);
+  const sources = modeSources(dir, { home });
   const detected = wiredHarnesses(detectHarnesses({ home, cwd }), { dir, cwd });
   const wired = detected.filter((harness) => harness.wired);
   const manual = detected.filter((harness) => !['hermes', 'claude-code', 'codex', 'gemini', 'cline'].includes(harness.key));
   return {
     initialized,
     mode,
+    mode_source: sources.ledger.path,
+    mode_conflicts: sources.legacy.filter((source) => source.mode !== null && source.mode !== mode),
+    mode_drift: sources.drift,
     ledger: initialized ? paths(dir).dir : null,
     harnesses: detected,
     wired: wired.map((harness) => harness.key),

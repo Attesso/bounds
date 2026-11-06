@@ -669,10 +669,11 @@
       dayStats.set(day, stats);
       if (!days.includes(day)) { days.push(day); days.sort(); }
       initialHead = Math.max(initialHead, Number(payload.seq || 0));
+      el('ledger-total').textContent = fmt(initialHead);
       summaryCache.delete(day);
       flowCache.delete(day);
       if (day === selectedDay) {
-        if (selectedSeq) {
+        if (selectedSeq || selectedMarker) {
           pendingLive = true;
           renderDayStrip();
         } else {
@@ -695,7 +696,8 @@
     if (calls[day].some((row) => String(row[0]) === String(payload.row[0]))) return;
     calls[day].push(payload.row);
     initialHead = Math.max(initialHead, Number(payload.seq || 0));
-    if (day === selectedDay && !selectedSeq) {
+    el('ledger-total').textContent = fmt(initialHead);
+    if (day === selectedDay && !selectedSeq && !selectedMarker) {
       renderDay(day);
     } else {
       renderLifetime();
@@ -1304,14 +1306,12 @@
   }
 
   async function openDeepLink(seq) {
-    const params = new URLSearchParams({ day: selectedDay, tz: TZ, limit: '200', search: String(seq) });
-    const response = await fetch('/api/v1/calls?' + params.toString(), { cache: 'no-store', headers: AUTH });
+    const response = await fetch('/api/v1/call?seq=' + encodeURIComponent(String(seq)) + '&tz=' + encodeURIComponent(TZ), { cache: 'no-store', headers: AUTH });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || 'deep link ' + response.status);
-    const found = (body.rows || []).find((row) => Number(row[0]) === seq);
-    if (!found) return;
-    const row = found.slice();
-    row[7] = selectedDay;
+    const row = body.row.slice();
+    row[7] = body.day;
+    if (body.day !== selectedDay) await renderDay(body.day);
     bySeq.set(String(seq), row);
     const minute = Math.floor(minuteOf(row[1]) / 5) * 5;
     const marker = markerBySeq.get(String(seq)) ?? [...document.querySelectorAll('.fm')].find(
@@ -1638,6 +1638,7 @@
     flowCache.set(day, await flowResponse.json());
     calls[day] = calls[day] || [];
     initialHead = Math.max(initialHead, Number(summaryValue.head || 0));
+    el('ledger-total').textContent = fmt(initialHead);
   }
 
   async function renderDay(day) {
@@ -1724,7 +1725,6 @@
 
   function renderLifetime() {
     const { total, tools } = lifetimeSummary();
-    el('ledger-total').textContent = fmt(total);
     const target = el('calls-lifetime');
     target.replaceChildren();
     const label = document.createElement('span');

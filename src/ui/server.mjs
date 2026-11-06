@@ -12,56 +12,26 @@ import { gzipSync } from 'node:zlib';
 import { connect as connectAgent, setModeAll, status as agentStatus } from '../connect.mjs';
 import { validatePathsConfig } from '../fs-paths.mjs';
 import { clearWorkspace, resolveWorkspace, workspaceView, writeWorkspace } from '../workspace.mjs';
-import { isInitialised, paths, readActiveRun, readDetail, readEntries, readKey, readRunBudget } from '../store.mjs';
+import { isInitialised, paths, readActiveRun, readDetail, readEntries, readKey, readLastRun, readRunBudget } from '../store.mjs';
 import { sync } from '../sync.mjs';
 import { lastRunFrom } from '../run.mjs';
 import { verifyDetail } from '../detail.mjs';
 import { verifyEntry } from '../ledger.mjs';
-import { Catalog, validateTimeZone } from './catalog.mjs';
+import { Catalog, dayFor, validateTimeZone } from './catalog.mjs';
 import { isMetaAction, usageForDay } from '../usage.mjs';
-import { days as queryDays, exportCsv as queryExportCsv, flow as queryFlow, page as queryPage, parseCursor, parseDay, parseLimit, summary as querySummary } from './query.mjs';
+import { days as queryDays, exportCsv as queryExportCsv, flow as queryFlow, page as queryPage, parseCursor, parseDay, parseLimit, rowFor as queryRow, summary as querySummary } from './query.mjs';
 import { LedgerTail } from './live.mjs';
 
 const UI_ROOT = dirname(fileURLToPath(import.meta.url));
 const STATIC_ROOT = join(UI_ROOT, 'static');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 const MAX_BODY = 512_000;
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const localDay = (date) => {
   const pad = (value) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
-const localTime = (date) => {
-  const pad = (value) => String(value).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
-
-function rowFor(entry) {
-  const date = new Date(entry.at);
-  return [
-    entry.seq,
-    localTime(date),
-    entry.subject ?? 'unknown',
-    entry.capability ?? 'unknown',
-    entry.decision ?? 'UNKNOWN',
-    entry.code ?? '',
-    entry.task ?? 'unknown',
-  ];
-}
-
-function callsPayload(dir) {
-  if (!isInitialised(dir)) return { days: {}, head: 0 };
-  const days = {};
-  let head = 0;
-  for (const entry of readEntries(dir)) {
-    head = Math.max(head, entry.seq);
-    if (isMetaAction(entry)) continue;
-    const day = localDay(new Date(entry.at));
-    if (!days[day]) days[day] = [];
-    days[day].push(rowFor(entry));
-  }
-  return { days, head };
-}
 
 const readJson = (file, fallback) => {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return fallback; }
@@ -181,7 +151,7 @@ export function startUi({
 
   const broadcast = (entry) => {
     const day = localDay(new Date(entry.at));
-    const message = `id: ${entry.seq}\nevent: decision\ndata: ${JSON.stringify({ day, row: rowFor(entry), seq: entry.seq })}\n\n`;
+    const message = `id: ${entry.seq}\nevent: decision\ndata: ${JSON.stringify({ day, row: queryRow(entry, TZ), seq: entry.seq })}\n\n`;
     for (const client of clients) {
       try {
         if (client.res.writableLength > 1_000_000) {
@@ -238,11 +208,8 @@ export function startUi({
         let runValue;
         try { runValue = readActiveRun(ledger); } catch (error) { runValue = { error: 'run unreadable' }; }
         let lastValue;
-        try { lastValue = lastRunFrom(readEntries(ledger)); } catch (error) { lastValue = { error: 'runs unreadable' }; }
+        try { lastValue = readLastRun(ledger) ?? lastRunFrom(readEntries(ledger)); } catch (error) { lastValue = { error: 'runs unreadable' }; }
         return json(res, 200, { ...agentStatus({ dir: ledger, cwd, home }), paths: pathsValue, budget: budgetValue, run: runValue, last: lastValue });
-      }
-      if (url.pathname === '/api/calls' && req.method === 'GET') {
-        return json(res, 200, callsPayload(ledger));
       }
       if (url.pathname === '/api/v1/detail' && req.method !== 'GET' && req.method !== 'HEAD') {
         return json(res, 405, { error: 'method not allowed' });
@@ -254,7 +221,12 @@ export function startUi({
             const rawSeq = url.searchParams.get('seq') ?? '';
             if (!/^[1-9][0-9]*$/.test(rawSeq)) return json(res, 400, { error: 'seq must be a positive integer' });
             const seq = Number(rawSeq);
-            const entry = readEntries(ledger).find((item) => item.seq === seq);
+            let entry;
+            catalog.scanAfter(seq - 1, (item) => {
+              if (item.seq !== seq) return;
+              entry = item;
+              return false;
+            });
             if (!entry) return json(res, 404, { error: 'no such decision' });
             if (!verifyEntry(entry, readKey(ledger).public)) {
               return json(res, 200, { seq, state: 'changed', reason: 'entry signature does not verify' });
@@ -271,6 +243,19 @@ export function startUi({
             const checked = verifyDetail(entry, detail);
             if (!checked.ok) return json(res, 200, { seq, state: 'changed', reason: checked.reason });
             return json(res, 200, { seq, state: 'verified', detail });
+          }
+          if (url.pathname === '/api/v1/call') {
+            const rawSeq = url.searchParams.get('seq') ?? '';
+            if (!/^[1-9][0-9]*$/.test(rawSeq)) return json(res, 400, { error: 'seq must be a positive integer' });
+            const seq = Number(rawSeq);
+            let entry;
+            catalog.scanAfter(seq - 1, (item) => {
+              if (item.seq !== seq) return;
+              entry = item;
+              return false;
+            });
+            if (!entry || isMetaAction(entry)) return json(res, 404, { error: 'no such decision' });
+            return json(res, 200, { row: queryRow(entry, timeZone), day: dayFor(entry.at, timeZone) });
           }
           if (url.pathname === '/api/v1/summary') {
             return json(res, 200, querySummary(catalog, { day: parseDay(url.searchParams.get('day'), timeZone), timeZone }));
@@ -328,12 +313,11 @@ export function startUi({
         const after = Number(url.searchParams.get('after') ?? req.headers['last-event-id'] ?? 0);
         if (isInitialised(ledger) && after > 0) {
           try {
-            for (const entry of readEntries(ledger)) {
-              if (isMetaAction(entry)) continue;
-              if (entry.seq <= after) continue;
+            catalog.scanAfter(after, (entry) => {
+              if (isMetaAction(entry)) return;
               const day = localDay(new Date(entry.at));
-              res.write(`id: ${entry.seq}\nevent: decision\ndata: ${JSON.stringify({ day, row: rowFor(entry), seq: entry.seq })}\n\n`);
-            }
+              res.write(`id: ${entry.seq}\nevent: decision\ndata: ${JSON.stringify({ day, row: queryRow(entry, TZ), seq: entry.seq })}\n\n`);
+            });
           } catch {
             res.write('event: reset\ndata: {}\n\n');
           }
@@ -423,7 +407,7 @@ export function startUi({
           tail.open();
           tailTimer = setInterval(poll, 400);
         } catch {
-          // The page still reads the ledger through /api/calls; the stream waits.
+          // A headless machine can still use the URL printed by the CLI.
         }
       }
       const url = `http://127.0.0.1:${address.port}/`;

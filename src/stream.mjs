@@ -44,7 +44,7 @@ export function forEachEntrySync(file, onEntry, { startOffset = 0 } = {}) {
   }
 }
 
-export async function forEachEntry(file, onEntry) {
+export async function forEachEntry(file, onEntry, { onIgnoredTail } = {}) {
   const stream = createReadStream(file);
   const decoder = new StringDecoder('utf8');
   let buffer = '';
@@ -53,7 +53,13 @@ export async function forEachEntry(file, onEntry) {
   const handle = async (line, tail) => {
     index += 1;
     const entry = tail ? parseTail(line, index) : parseLine(line, index);
-    if (entry === undefined) return;
+    if (entry === undefined) {
+      // A writer can be killed between its last byte and its newline. The line is
+      // not an entry, so it must not be judged, but it must not vanish either:
+      // verify says so instead of reporting a clean chain over a truncated file.
+      if (tail && onIgnoredTail) onIgnoredTail(line);
+      return;
+    }
     await onEntry(entry, index);
   };
 

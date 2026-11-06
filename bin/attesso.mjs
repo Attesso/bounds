@@ -12,7 +12,7 @@ import { packetFor, verifyPacket } from './../src/packet.mjs';
 import { resolveWorkspace } from './../src/workspace.mjs';
 import { formatMinor, toMinor, validatePolicy } from './../src/policy.mjs';
 import { checkpointFor, receiptFor, signerOf, verifyPinned, verifyReceipt } from './../src/receipt.mjs';
-import { append, appendUsage, deleteDetail, init, isInitialised, paths, readActiveRun, readDetail, readState, readToolLock, setRulesProfile, setRunBudget, verifyLedger, withLedgerLock, writeMcpManifest, writeToolLock } from './../src/store.mjs';
+import { append, appendUsage, deleteDetail, init, isInitialised, paths, readActiveRun, readConfig, readDetail, readState, readToolLock, setRulesProfile, setRunBudget, verifyLedger, withLedgerLock, writeMcpManifest, writeToolLock } from './../src/store.mjs';
 import { buildReportStream, renderReport } from './../src/report.mjs';
 import { replay, renderReplay } from './../src/replay.mjs';
 import { watchEntries } from './../src/watch.mjs';
@@ -35,11 +35,24 @@ import { sync, watchSync } from './../src/sync.mjs';
 import { pullPolicy } from './../src/remote-policy.mjs';
 import { endRun, startRun } from './../src/run.mjs';
 import { verifyDetail } from './../src/detail.mjs';
+import { ENGINE_VERSION } from './../src/version.mjs';
 
 const argv = process.argv.slice(2);
 const dirAt = argv.indexOf('--dir');
 const DIR = dirAt === -1 ? '.attesso' : argv[dirAt + 1];
 if (dirAt !== -1) argv.splice(dirAt, 2);
+
+// A ledger names the build that wrote it. Ledgers written before the field
+// existed simply print nothing here.
+const engineSuffix = (engine) =>
+  typeof engine === 'string' && engine !== '' ? `, engine ${engine}` : '';
+const storedEngine = (dir) => {
+  try {
+    return readConfig(dir).engine;
+  } catch {
+    return undefined;
+  }
+};
 
 const USAGE = `attesso: a local, signed ledger of what your agents attempted
 
@@ -279,9 +292,17 @@ function verify(rest = []) {
     }
     if (!result.ok) {
       console.error(`ledger does not verify: ${result.reason}`);
+      if (result.verified > 0) {
+        console.error(
+          `${result.verified} ${result.verified === 1 ? 'entry' : 'entries'} before it verify; the record up to that point is intact.`,
+        );
+      }
       process.exit(1);
     }
-    console.log(`ledger verifies: ${result.reason}, key ${state.key.kid}`);
+    console.log(`ledger verifies: ${result.reason}, key ${state.key.kid}${engineSuffix(state.config.engine)}`);
+    if (result.ignoredTail) {
+      console.log('note: the last line is incomplete and was ignored; the next append repairs it');
+    }
     const pinned = readJsonFile(options.pin, 'verify --pin');
     const check = verifyPinned(state.entries, pinned, state.key.public);
     if (!check.ok) {
@@ -304,9 +325,17 @@ function verify(rest = []) {
     }
     if (!result.ok) {
       console.error(`ledger does not verify: ${result.reason}`);
+      if (result.verified > 0) {
+        console.error(
+          `${result.verified} ${result.verified === 1 ? 'entry' : 'entries'} before it verify; the record up to that point is intact.`,
+        );
+      }
       process.exit(1);
     }
-    console.log(`ledger verifies: ${result.reason}, key ${result.kid}`);
+    console.log(`ledger verifies: ${result.reason}, key ${result.kid}${engineSuffix(storedEngine(DIR))}`);
+    if (result.ignoredTail) {
+      console.log('note: the last line is incomplete and was ignored; the next append repairs it');
+    }
     if (options.details === true) {
       let state;
       try {
@@ -796,6 +825,12 @@ switch (command) {
       } else {
         console.log(`connected: ${result.connected ? 'yes' : 'no'}`);
         console.log(`mode: ${result.mode ?? 'unset'}`);
+        console.log(`mode source: ${result.mode_source}`);
+        for (const conflict of result.mode_conflicts ?? []) {
+          console.log(
+            `warning: ${conflict.path} says ${conflict.mode}, so the hook that reads it decides differently; run \`attesso mode ${result.mode}\` to align both`,
+          );
+        }
         console.log(`ledger: ${result.ledger ?? 'not initialized'}`);
         for (const harness of result.harnesses) console.log(`${harness.key}: ${harness.wired ? 'wired' : 'not wired'}`);
       }
@@ -1143,6 +1178,10 @@ switch (command) {
     console.log(USAGE);
     break;
   default:
+    if (command === '--version' || command === '-v' || command === '-V' || command === 'version') {
+      console.log(ENGINE_VERSION);
+      break;
+    }
     if (command === '--help' || command === '-h' || command === 'help') {
       console.log(USAGE);
       break;
