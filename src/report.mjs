@@ -56,7 +56,35 @@ function finish(group) {
   };
 }
 
-function reportOf(groups, count, kid, all) {
+// A refusal the agent cannot act on becomes a retry storm: one measured ledger
+// has the same call refused 106 times. Counting blocked attempts that were
+// followed by the same call again is how the remedy gets measured, and the
+// number to watch go to zero.
+const retryStats = (entries) => {
+  const perCall = new Map();
+  for (const entry of entries) {
+    if (isRunAction(entry) || entry.args_hash === undefined) continue;
+    const key = `${entry.task ?? ''}\u0000${entry.subject ?? ''}\u0000${entry.args_hash}`;
+    if (!perCall.has(key)) perCall.set(key, []);
+    perCall.get(key).push(entry.decision === 'ALLOW');
+  }
+  let retried = 0;
+  let worst = 0;
+  for (const allowed of perCall.values()) {
+    let blocked = 0;
+    for (let index = 0; index < allowed.length; index += 1) {
+      if (allowed[index]) continue;
+      blocked += 1;
+      // Anything after this attempt is a retry of the same call.
+      if (index < allowed.length - 1) retried += 1;
+    }
+    worst = Math.max(worst, blocked);
+  }
+  return { refusals_retried: retried, worst_call_blocked: worst };
+};
+
+function reportOf(groups, count, kid, all, entries) {
+
   return {
     key: kid,
     entries: count,
@@ -64,6 +92,7 @@ function reportOf(groups, count, kid, all) {
       .map(([task, group]) => ({ task, ...finish(group) }))
       .sort((left, right) => right.actions - left.actions),
     totals: finish(all),
+    retries: retryStats(entries),
   };
 }
 
@@ -78,7 +107,7 @@ export function buildReport(dir) {
     if (!groups.has(task)) groups.set(task, emptyGroup());
     add(groups.get(task), entry);
   }
-  return reportOf(groups, entries.length, key.kid, all);
+  return reportOf(groups, entries.length, key.kid, all, entries);
 }
 
 export async function buildReportStream(dir) {
@@ -86,15 +115,17 @@ export async function buildReportStream(dir) {
   const groups = new Map();
   const all = emptyGroup();
   let count = 0;
+  const entries = [];
   await forEachEntry(paths(dir).ledger, (entry) => {
     count += 1;
+    entries.push(entry);
     add(all, entry);
     if (isRunAction(entry)) return;
     const task = entry.task ?? '(unscoped)';
     if (!groups.has(task)) groups.set(task, emptyGroup());
     add(groups.get(task), entry);
   });
-  return reportOf(groups, count, key.kid, all);
+  return reportOf(groups, count, key.kid, all, entries);
 }
 
 const percent = (share) => (share === null ? 'n/a' : `${Math.round(share * 100)}%`);
@@ -102,10 +133,14 @@ const percent = (share) => (share === null ? 'n/a' : `${Math.round(share * 100)}
 export function renderReport(report) {
   const lines = [];
   const invalid = report.totals.invalid > 0 ? `, ${report.totals.invalid} invalid usage` : '';
+  const retried =
+    report.retries.refusals_retried > 0
+      ? `, ${report.retries.refusals_retried} refusals retried (worst call refused ${report.retries.worst_call_blocked}x)`
+      : '';
   lines.push(
     `${report.entries} entries, key ${report.key}: ${report.totals.actions} actions, ` +
       `${report.totals.blocked} refused (${percent(report.totals.blocked_share)}), ` +
-      `${report.totals.tokens.toLocaleString('en-US')} tokens, ${report.totals.cost_usd.toFixed(4)} USD${invalid}`,
+      `${report.totals.tokens.toLocaleString('en-US')} tokens, ${report.totals.cost_usd.toFixed(4)} USD${invalid}${retried}`,
   );
   lines.push('');
   const rows = report.tasks.map((task) => ({

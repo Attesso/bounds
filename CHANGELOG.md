@@ -5,6 +5,21 @@ on attesso.com/bounds renders the same history from
 `apps/www/src/content/bounds-releases.ts`; this file is the copy that travels
 with the package.
 
+## 0.13.4 - 14 November 2026
+
+- sync declares the coverage window it mirrored: the sequence range, the rows it
+  excluded by design and any sequence it has a hole at. The device signs the
+  statement with its ledger key, and the server re-reads the rows it stored and
+  refuses the window when they are not the rows the statement names.
+- A stored window returns an Attesso ES256 attestation over the range, the
+  device statement, a digest of the exact bytes it signed and the receipt time.
+  The CLI writes it to `.attesso/attestations/<window_id>.jws` with mode 0600.
+- `attesso coverage` lists the stored windows; `attesso coverage --jwks jwks.json`
+  verifies each envelope offline and exits non-zero on the first that does not.
+- Also in this window: sync sends each decision's signature and the exact bytes
+  it covers, plus the device public key, so the hosted mirror can verify a row
+  instead of trusting it. The local ledger is unchanged.
+
 ## 0.13.3 - 6 November 2026
 
 - Every refusal now carries a `remedy` from a closed list: `change_arguments`,

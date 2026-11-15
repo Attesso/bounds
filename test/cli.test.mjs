@@ -147,3 +147,22 @@ test('the documented read-then-send example refuses the send for its path', () =
   assert.match(send.stdout, /PATH_DENIED by step #1 under no-send-after-untrusted-read/);
   assert.equal(run(['verify']).status, 0);
 });
+
+test('status names the next step instead of stopping at three bare facts', () => {
+  const dir = workspace();
+  assert.equal(run(dir, 'init').code, 0);
+  const status = run(dir, 'status');
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /mode: unset/);
+  // The status module already computed this line; the CLI used to drop it, so
+  // a first run ended on "connected: no" with nothing to do next.
+  assert.match(status.output, /next: run `attesso connect --write --mode observe` from the agent/);
+});
+
+test('status --json carries the same guidance', () => {
+  const dir = workspace();
+  assert.equal(run(dir, 'init').code, 0);
+  const status = run(dir, 'status', '--json');
+  assert.equal(status.code, 0, status.output);
+  assert.ok(JSON.parse(status.output).next.length > 0);
+});

@@ -3,6 +3,8 @@
 // advances a durable cursor after the server confirms the batch.
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { canonical } from './canonical.mjs';
+import { coverageStatement, writeAttestation } from './coverage.mjs';
 import { entryHash, isRunAction } from './ledger.mjs';
 import { normalizeUsage } from './usage.mjs';
 import { forEachEntrySync } from './stream.mjs';
@@ -10,6 +12,12 @@ import { paths, readKey } from './store.mjs';
 
 export const SYNC_VERSION = 1;
 export const DEFAULT_LIMIT = 50;
+
+// signedBytes returns the exact byte string the entry's signature covers.
+const signedBytes = (entry) => {
+  const { sig, ...rest } = entry;
+  return canonical(rest);
+};
 
 export function syncPath(dir) {
   return join(dir, 'sync.json');
@@ -78,7 +86,8 @@ export async function sync({
   if (!existsSync(ledgerPath)) throw new Error('no ledger to sync');
   if (!url) throw new Error('sync url is required');
   if (!key && !dryRun) throw new Error('sync API key is required');
-  const deviceId = readKey(dir).kid;
+  const ledgerKey = readKey(dir);
+  const deviceId = ledgerKey.kid;
   if (typeof deviceId !== 'string' || !/^[A-Za-z0-9._:-]{1,64}$/.test(deviceId)) {
     throw new Error('ledger key id is not a valid device id');
   }
@@ -88,16 +97,24 @@ export async function sync({
   }
   const entries = [];
   const usage = [];
+  const seqs = [];
+  let excludedRun = 0;
+  let excludedUsage = 0;
   let lastSeq = state.last_seq;
   forEachEntrySync(ledgerPath, (entry) => {
     if (entry.seq <= state.last_seq) return;
     if (entries.length + usage.length >= limit) return false;
+    seqs.push(entry.seq);
     if (isRunAction(entry)) {
+      excludedRun += 1;
       lastSeq = entry.seq;
       return;
     }
     const reported = usageFromEntry(entry);
-    if (reported) usage.push(reported);
+    if (reported) {
+      usage.push(reported);
+      excludedUsage += 1;
+    }
     if (entry.action !== 'llm.session') {
       entries.push({
         seq: entry.seq,
@@ -109,6 +126,11 @@ export async function sync({
         code: entry.code,
         task: entry.task ?? null,
         entry_hash: entryHash(entry),
+        // The hosted mirror cannot rebuild these bytes, so it gets the ones the
+        // ledger signed. Removing sig reproduces them exactly: canonical sorts
+        // keys, so canonical(entry minus sig) is what the signature covers.
+        sig: entry.sig ?? null,
+        signed: signedBytes(entry),
       });
     }
     lastSeq = entry.seq;
@@ -116,8 +138,22 @@ export async function sync({
   if (entries.length === 0 && usage.length === 0) {
     return { accepted: 0, skipped: 0, metered: 0, usage: 0, last_seq: state.last_seq, device_id: deviceId };
   }
-  const body = { device_id: deviceId, entries };
+  // The key is pinned server-side on first sync; a different key later is
+  // refused, so a workspace API key alone cannot sign as an existing device.
+  const body = { device_id: deviceId, device_public_key: ledgerKey.public, entries };
   if (usage.length > 0) body.usage = usage;
+  // The window starts where the cursor left off, not at the first row seen: a
+  // hole before it has to be declared, which is what the statement does.
+  body.coverage = coverageStatement({
+    dir,
+    fromSeq: state.last_seq + 1,
+    toSeq: lastSeq,
+    entries,
+    excludedRun,
+    excludedUsage,
+    seqs,
+    key: ledgerKey,
+  });
   if (dryRun) {
     return { accepted: 0, skipped: 0, metered: 0, usage: 0, last_seq: state.last_seq, device_id: deviceId, dry_run: true, entries: entries.length, usage_rows: usage.length };
   }
@@ -137,7 +173,12 @@ export async function sync({
     throw new Error(`sync failed with status ${response.status}`);
   }
   if (!response.ok) {
-    throw new Error(`sync failed with status ${response.status}`);
+    // The problem body names which rule refused the window, and a bare status
+    // sends the user to the server logs for something they can fix locally.
+    const detail = typeof payload?.detail === 'string' && payload.detail.trim() !== ''
+      ? `: ${payload.detail.trim()}`
+      : '';
+    throw new Error(`sync failed with status ${response.status}${detail}`);
   }
   const accepted = Number(payload.accepted);
   const skipped = Number(payload.skipped);
@@ -147,7 +188,27 @@ export async function sync({
     throw new Error('sync response is invalid');
   }
   writeSyncState(dir, lastSeq, deviceId);
-  return { accepted, skipped, metered, usage: usageRows, last_seq: lastSeq, device_id: deviceId };
+  // The envelope is written only after the cursor moves: a stored window with a
+  // lost envelope would be a receipt the user cannot show.
+  let attestation = null;
+  let attestationError = null;
+  if (payload.coverage && typeof payload.coverage === 'object') {
+    try {
+      attestation = writeAttestation(dir, payload.coverage);
+    } catch (error) {
+      attestationError = error.message;
+    }
+  }
+  return {
+    accepted,
+    skipped,
+    metered,
+    usage: usageRows,
+    last_seq: lastSeq,
+    device_id: deviceId,
+    attestation,
+    ...(attestationError === null ? {} : { attestation_error: attestationError }),
+  };
 }
 
 

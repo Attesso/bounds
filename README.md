@@ -53,6 +53,16 @@ then `ATTESSO_SYNC_URL` / `ATTESSO_API_KEY`, then the workspace config. The UI
 never returns the key, and the free local tier needs no connection. **Sync now**
 in the workspace panel runs the same batch as `attesso sync`.
 
+Each sync also declares the window it mirrored: the range, what it excluded by
+design (run markers, usage rows) and any sequence it has a hole at. The device
+signs that statement with its ledger key; the server checks the signature
+against the rows it stored and refuses a window whose claim the stored set does
+not match. When the window is stored, the response carries an ES256 attestation
+over it, and the CLI writes it to `.attesso/attestations/<window_id>.jws` (0600).
+`attesso coverage` lists those windows and `attesso coverage --jwks jwks.json`
+verifies each signature offline against the published keys, exiting non-zero on
+the first that does not verify.
+
 The hosted overview is at `/dashboard/<env>/bounds/hosted`. It shows the lifetime
 decision and refusal counts, device sync health, the refusal reasons and tool
 activity for the last 24 hours, the three newest open refusals, the five newest
@@ -249,6 +259,15 @@ In-process embedders can subscribe to the `bounds.decision` diagnostics channel.
 ## The policy
 
 `.attesso/policy.json` starts with `"action": "*"`, so a fresh ledger records every action; tighten it once you know what to allow. A policy governs one action; `"action": "*"` covers every action and is what a recording-only ledger uses.
+
+That default has no ceiling: on a fresh workspace a payment of any amount is
+allowed, and only a path rule or a run budget bounds it. This is deliberate,
+because the first run records rather than governs, and a default that refuses
+before it has seen anything produces a worse first hour than one that records.
+It is also a decision, not an accident: if this ledger is going to judge money,
+replace the default before the first payment. `"action": "purchase.execute"`
+with `"currency"` and `"max_amount"` is the whole fix, and `attesso suggest`
+drafts it from what the ledger has already seen.
 
 ```json
 { "version": 1, "action": "tool.call", "subjects": ["read_file", "search_files", "grep_repo"] }

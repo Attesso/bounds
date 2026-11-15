@@ -33,6 +33,7 @@ import { validatePathsConfig } from './../src/fs-paths.mjs';
 import { startUi } from './../src/ui/server.mjs';
 import { sync, watchSync } from './../src/sync.mjs';
 import { pullPolicy } from './../src/remote-policy.mjs';
+import { readAttestations, verifyAttestation } from './../src/coverage.mjs';
 import { endRun, startRun } from './../src/run.mjs';
 import { verifyDetail } from './../src/detail.mjs';
 import { ENGINE_VERSION } from './../src/version.mjs';
@@ -122,6 +123,9 @@ const USAGE = `attesso: a local, signed ledger of what your agents attempted
                                      sync decisions and usage to the hosted mirror
                                      --watch keeps it current every 5 seconds
                                      (workspace config or ATTESSO_API_KEY; never printed)
+  attesso coverage [--json] [--jwks PATH]
+                                     the attestation saved for each synced window;
+                                     --jwks verifies it against published keys
   attesso usage [--stdin] [--task T] [--input N] [--output N] [--cached N]
                  [--cost USD] [--model M] [--json]
                                      record measured token usage for a task; --stdin
@@ -142,6 +146,13 @@ which no per-step check can see. --meta carries whatever you want counted later
 The log is signed with a key that lives in .attesso/key.json. That proves the
 ledger was not edited; it does not prove a human authorized anything. Hosted
 Attesso adds passkey approval and evidence a third party verifies offline.`;
+
+// One line for the receipt a user can actually hand over, and one honest line
+// when the hosted plane sent something the CLI refuses to write.
+const printAttestation = (result) => {
+  if (result.attestation_error) console.error(`coverage: ${result.attestation_error}`);
+  else if (result.attestation) console.log(`coverage: attested window saved to ${result.attestation}`);
+};
 
 function requireLedger() {
   if (!isInitialised(DIR)) {
@@ -839,6 +850,7 @@ switch (command) {
         }
         console.log(`ledger: ${result.ledger ?? 'not initialized'}`);
         for (const harness of result.harnesses) console.log(`${harness.key}: ${harness.wired ? 'wired' : 'not wired'}`);
+        for (const step of result.next ?? []) console.log(`next: ${step}`);
       }
     } catch (error) {
       console.error(`status: ${error.message}`);
@@ -977,7 +989,10 @@ switch (command) {
           onResult: (result) => {
             if (result instanceof Error) console.error(`sync: ${result.message}`);
             else if (options.json) console.log(JSON.stringify(result, null, 2));
-            else console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered, ${result.usage ?? 0} usage; last #${result.last_seq}`);
+            else {
+              console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered, ${result.usage ?? 0} usage; last #${result.last_seq}`);
+              printAttestation(result);
+            }
           },
         });
         break;
@@ -985,9 +1000,77 @@ switch (command) {
       const result = await sync({ dir: DIR, url, key, limit: requested, dryRun: rest.includes('--dry-run') });
       if (options.json) console.log(JSON.stringify(result, null, 2));
       else if (result.dry_run) console.log(`sync dry run: ${result.entries} decision(s) and ${result.usage_rows} usage row(s) ready`);
-      else console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered, ${result.usage ?? 0} usage; last #${result.last_seq}`);
+      else {
+        console.log(`sync: ${result.accepted} accepted, ${result.skipped} already present, ${result.metered} metered, ${result.usage ?? 0} usage; last #${result.last_seq}`);
+        printAttestation(result);
+      }
     } catch (error) {
       console.error(`sync: ${error.message}`);
+      process.exit(2);
+    }
+    break;
+  }
+  case 'coverage': {
+    try {
+      const options = flags(rest);
+      const files = readAttestations(DIR);
+      let jwks = null;
+      if (options.jwks !== undefined) {
+        try {
+          jwks = JSON.parse(readFileSync(resolve(String(options.jwks)), 'utf8'));
+        } catch (error) {
+          console.error(`coverage: cannot read ${options.jwks}: ${error.message}`);
+          process.exit(2);
+        }
+      }
+      const windows = files.map(({ file, envelope }) => {
+        if (!envelope) {
+          return { file, verified: false, reason: 'file is not an attestation envelope' };
+        }
+        let payload = null;
+        try {
+          payload = JSON.parse(Buffer.from(envelope.payload, 'base64url').toString('utf8'));
+        } catch {
+          return { file, verified: false, reason: 'attestation payload is not readable' };
+        }
+        const row = {
+          window_id: payload.window_id,
+          from_seq: payload.from_seq,
+          to_seq: payload.to_seq,
+          state: payload.state,
+          received_at: payload.received_at,
+          mode: payload.mode,
+          rules_digest: payload.rules_digest,
+          file,
+          verified: null,
+        };
+        if (jwks !== null) {
+          try {
+            const result = verifyAttestation(envelope, jwks);
+            row.verified = true;
+            row.kid = result.kid;
+          } catch (error) {
+            row.verified = false;
+            row.reason = error.message;
+          }
+        }
+        return row;
+      });
+      if (options.json) {
+        console.log(JSON.stringify({ windows }, null, 2));
+      } else if (windows.length === 0) {
+        console.log('no attestations yet: the next sync of a window stores one');
+      } else {
+        for (const row of windows) {
+          const range = Number.isSafeInteger(row.from_seq) ? ` ${row.from_seq}-${row.to_seq}` : '';
+          const verdict = row.verified === null ? 'signature unchecked (pass --jwks)'
+            : row.verified ? `verified ${row.kid}` : `REFUSED: ${row.reason}`;
+          console.log(`${row.window_id ?? row.file}${range} ${row.state ?? ''} ${verdict}`);
+        }
+      }
+      if (windows.some((row) => row.verified === false)) process.exit(1);
+    } catch (error) {
+      console.error(`coverage: ${error.message}`);
       process.exit(2);
     }
     break;

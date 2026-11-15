@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { createPublicKey, verify } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { join } from 'node:path';
 import test from 'node:test';
 import { append, appendUsage, init, verifyLedger } from '../src/store.mjs';
 import { endRun, startRun } from '../src/run.mjs';
@@ -199,4 +202,41 @@ test('watch sync keeps retrying until the signal stops it', async () => {
   } finally {
     await http.close();
   }
+});
+
+test('sync sends what the ledger signed, and the signature re-verifies offline', async () => {
+  // The mirror cannot rebuild these bytes, so it must receive them. If this
+  // payload loses sig or signed, every hosted row silently becomes unverified.
+  const root = fixture();
+  const http = await server((body, response) => {
+    const payload = JSON.parse(body);
+    response.end(JSON.stringify({ accepted: payload.entries.length, skipped: 0, metered: payload.entries.length }));
+  });
+  const result = await sync({ dir: root, url: http.url, key: 'attesso_live_abc.def' });
+  assert.equal(result.accepted, 2);
+
+  const payload = JSON.parse(http.requests[0].body);
+  assert.match(payload.device_public_key, /BEGIN PUBLIC KEY/);
+  assert.equal(payload.entries.length, 2);
+
+  const key = JSON.parse(readFileSync(join(root, 'key.json'), 'utf8'));
+  const publicKey = createPublicKey(key.public);
+  for (const entry of payload.entries) {
+    assert.ok(entry.sig, 'entry carries no signature');
+    assert.ok(entry.signed, 'entry carries no signed bytes');
+    const ok = verify(
+      null,
+      Buffer.from(entry.signed, 'utf8'),
+      publicKey,
+      Buffer.from(entry.sig, 'base64url'),
+    );
+    assert.equal(ok, true, `signature did not verify for seq ${entry.seq}`);
+    // The signed bytes must describe the row the mirror stores.
+    const signed = JSON.parse(entry.signed);
+    assert.equal(signed.seq, entry.seq);
+    assert.equal(signed.action, entry.action);
+    assert.equal(signed.decision, entry.decision);
+    assert.equal(signed.code, entry.code);
+  }
+  await http.close();
 });

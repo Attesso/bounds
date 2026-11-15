@@ -40,6 +40,7 @@ export function paths(dir) {
     toolLock: join(dir, 'tools.lock.json'),
     toolsSnapshots: join(dir, 'tools'),
     mcpSnapshots: join(dir, 'mcp'),
+    attestations: join(dir, 'attestations'),
   };
 }
 
